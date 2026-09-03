@@ -1,5 +1,5 @@
 name: waveforms_audio
-description: "A new Flutter package project."
+description: "A highly optimized Flutter rendering package for drawing customizable audio waveforms, circles, and other shapes at 60/120fps."
 version: 0.0.1
 homepage: https://github.com/pinzarulab/waveforms_audio
 
