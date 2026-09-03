@@ -1,7 +1,7 @@
 # Waveforms Audio
 
-Flutter audio visualizers: frequency-reactive orbs, layered waves, rounded spectrum
-bars, and classic linear/circular/oval waveforms. No runtime dependencies beyond Flutter.
+Flutter audio visualizers: frequency-reactive orbs, layered waves, centered and
+upward spectrum bars, voice bars, halos, and classic linear/circular/oval waveforms. No runtime dependencies beyond Flutter.
 
 ## Natural, frequency-driven motion
 
@@ -20,12 +20,32 @@ import 'package:waveforms_audio/waveforms_audio.dart';
 ReactiveAudioVisualizer(
   audioStream: monoPcmStream, // Stream<List<double>>, normalized signed PCM (-1–1)
   sampleRate: 48000,         // Must match your audio source
-  style: ReactiveVisualizerStyle.orb, // Also: wave, bars
+  style: ReactiveVisualizerStyle.upwardBars,
+  // Optional: omit to keep the active palette during silence.
+  // inactiveColor: Colors.grey,
   attack: const Duration(milliseconds: 45),
   release: const Duration(milliseconds: 320),
   size: const Size(double.infinity, 300),
 )
 ```
+
+### Styles and resting colors
+
+| Style | Motion |
+| --- | --- |
+| `orb` | Smooth, layered sphere shaped by bass, voice, and high frequencies. |
+| `wave` | Flowing ribbons with tapered edges. |
+| `bars` | Rounded frequency bars that grow above and below the center. |
+| `upwardBars` | Rounded frequency bars that rise from a fixed bottom baseline. |
+| `voiceBars` | Five rounded voice bars that settle into small pills. |
+| `halo` | A segmented ring with mirrored frequency response. |
+
+All six styles keep their active palette during silence by default, on both
+`ReactiveAudioVisualizer` and `VoiceChatVisualizer`. `inactiveColor` is optional
+and defaults to null. Set it explicitly (for example, `Colors.grey`) to fade to a
+separate resting color as sound subsides. Each spectrum bar or halo segment then
+follows its own frequency energy. Set it back to null to restore the active
+palette at rest. Use equal primary and secondary colors for a solid color.
 
 Connect decoded mono PCM from your recorder or player. This package does not record,
 play, or decode audio. Encoded file bytes, per-chunk peaks, and precomputed frequency
@@ -35,7 +55,8 @@ magnitudes are not PCM. Downmix multichannel audio before passing it in.
   lower frequencies more precisely but respond more slowly.
 - `bandCount`: 3–128; default 32.
 - `sampleRate`: at least 8000 Hz; use the source's actual rate, not the UI refresh rate.
-- `color` / `secondaryColor`: gradient colors.
+- `color` / `secondaryColor`: active gradient colors.
+- `inactiveColor`: optional resting color; defaults to null (keep the active palette).
 - A gap longer than 220 ms (or 1.5 times the last chunk's duration, whichever is
   greater) starts the release to silence. Small, regular chunks work best.
 - System reduced motion disables the continuous animation and the orb's deformation;
@@ -53,6 +74,11 @@ Use `VoiceChatVisualizer` when the color identifies who is speaking:
 - `VoiceChatSpeaker.local`: blue → cyan.
 - `VoiceChatSpeaker.remote`: red → orange (another participant or an AI).
 
+Override either speaker's active gradient with `localColor`, `localSecondaryColor`,
+`remoteColor`, and `remoteSecondaryColor`. Omitted or null colors keep their
+individual preset defaults. Overrides apply to orb, wave, and spectrum styles
+and retain the smooth transition between speakers.
+
 The role transition takes 240 ms and respects reduced motion. Set the role from
 chat state, active-speaker events, or playback state. Frequency analysis animates
 the sound; it does not identify people or decide whether a voice is human or AI.
@@ -66,6 +92,13 @@ VoiceChatVisualizer(
       ? VoiceChatSpeaker.remote
       : VoiceChatSpeaker.local,
   style: ReactiveVisualizerStyle.orb, // wave and bars use the same role colors
+  // Optional custom speaker gradients:
+  localColor: Colors.purple,
+  localSecondaryColor: Colors.pinkAccent,
+  remoteColor: Colors.green,
+  remoteSecondaryColor: Colors.limeAccent,
+  // Optional resting-color override:
+  // inactiveColor: Colors.blueGrey,
 )
 ```
 
@@ -114,10 +147,12 @@ flutter run
 ```
 
 1. Select **Microphone**, tap **Start microphone**, and grant access.
-2. Speak normally. Orb, Wave, and Spectrum respond to your actual voice.
+2. Speak normally. Choose any of the six styles to visualize your voice.
 3. Select **You** for blue–cyan or **Other / AI** for red–orange. These buttons
    preview roles with the same microphone; no remote participant or AI is connected.
-4. Tap **Stop microphone** to release capture. Capture also stops when the app
+4. Expand **Colors** to try speaker, violet, or emerald active palettes and
+   optional gray, slate, or rose resting colors. **Keep active color** is the default.
+5. Tap **Stop microphone** to release capture. Capture also stops when the app
    enters the background; resuming the app does not restart it automatically.
 
 Audio is processed locally in memory. The example does not save or upload it,

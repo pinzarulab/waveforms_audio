@@ -1,7 +1,10 @@
 # Waveforms voice demo
 
 Run `flutter run`, select **Microphone**, then tap **Start microphone** and grant
-permission. Speak to drive the orb, wave, or spectrum with real microphone PCM.
+permission. Speak to drive any of the six styles with real microphone PCM.
+Choose Orb, Wave, Spectrum, Up bars, Voice bars, or Halo. Expand **Colors** to
+customize the active palette and an optional resting color. **Keep active color**
+is the default, preserving the active palette during silence.
 
 Choose **You** (blue–cyan) or **Other / AI** (red–orange) to preview chat roles.
 Both previews use your microphone. An actual chat integration supplies separate

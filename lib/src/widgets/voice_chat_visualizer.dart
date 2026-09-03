@@ -33,6 +33,18 @@ class VoiceChatVisualizer extends StatelessWidget {
   final Duration attack;
   final Duration release;
 
+  /// Optional resting color shared by both speakers.
+  /// Null keeps the current speaker’s active palette even in silence.
+  final Color? inactiveColor;
+
+  /// Local speaker gradient overrides. Null uses the blue–cyan preset.
+  final Color? localColor;
+  final Color? localSecondaryColor;
+
+  /// Remote/AI speaker gradient overrides. Null uses the red–orange preset.
+  final Color? remoteColor;
+  final Color? remoteSecondaryColor;
+
   const VoiceChatVisualizer({
     super.key,
     required this.audioStream,
@@ -42,6 +54,11 @@ class VoiceChatVisualizer extends StatelessWidget {
     this.size = const Size(double.infinity, 280),
     this.attack = const Duration(milliseconds: 45),
     this.release = const Duration(milliseconds: 320),
+    this.inactiveColor,
+    this.localColor,
+    this.localSecondaryColor,
+    this.remoteColor,
+    this.remoteSecondaryColor,
   });
 
   @override
@@ -64,14 +81,15 @@ class VoiceChatVisualizer extends StatelessWidget {
           size: size,
           attack: attack,
           release: release,
+          inactiveColor: inactiveColor,
           color: Color.lerp(
-            VoiceChatSpeaker.local.color,
-            VoiceChatSpeaker.remote.color,
+            localColor ?? VoiceChatSpeaker.local.color,
+            remoteColor ?? VoiceChatSpeaker.remote.color,
             mix,
           )!,
           secondaryColor: Color.lerp(
-            VoiceChatSpeaker.local.secondaryColor,
-            VoiceChatSpeaker.remote.secondaryColor,
+            localSecondaryColor ?? VoiceChatSpeaker.local.secondaryColor,
+            remoteSecondaryColor ?? VoiceChatSpeaker.remote.secondaryColor,
             mix,
           )!,
         ),

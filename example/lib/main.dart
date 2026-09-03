@@ -14,6 +14,8 @@ const _background = Color(0xFF0B1212);
 
 enum DemoSignal { bass, voice, air }
 
+enum DemoPalette { speaker, violet, emerald }
+
 class MyApp extends StatelessWidget {
   final MicrophoneInput? microphoneInput;
   const MyApp({super.key, this.microphoneInput});
@@ -51,6 +53,20 @@ class _VisualizerShowcaseState extends State<VisualizerShowcase>
   late final MicrophoneController _microphone;
   bool _useMicrophone = true;
   VoiceChatSpeaker _speaker = VoiceChatSpeaker.local;
+  DemoPalette _palette = DemoPalette.speaker;
+  Color? _inactiveColor;
+
+  Color? get _customColor => switch (_palette) {
+    DemoPalette.speaker => null,
+    DemoPalette.violet => const Color(0xFF9B7BFF),
+    DemoPalette.emerald => const Color(0xFF23D997),
+  };
+
+  Color? get _customSecondaryColor => switch (_palette) {
+    DemoPalette.speaker => null,
+    DemoPalette.violet => const Color(0xFFF28DCE),
+    DemoPalette.emerald => const Color(0xFFB8F76B),
+  };
   ReactiveVisualizerStyle _style = ReactiveVisualizerStyle.orb;
   DemoSignal _signal = DemoSignal.voice;
   bool _playing = true;
@@ -186,33 +202,51 @@ class _VisualizerShowcaseState extends State<VisualizerShowcase>
                   style: TextStyle(color: _muted, fontSize: 15),
                 ),
                 const SizedBox(height: 28),
-                Row(
-                  children: ReactiveVisualizerStyle.values
-                      .map(
-                        (style) => Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 3),
-                            child: _Choice(
-                              label: switch (style) {
-                                ReactiveVisualizerStyle.orb => 'Orb',
-                                ReactiveVisualizerStyle.wave => 'Wave',
-                                ReactiveVisualizerStyle.bars => 'Spectrum',
-                              },
-                              icon: switch (style) {
-                                ReactiveVisualizerStyle.orb =>
-                                  Icons.blur_circular_rounded,
-                                ReactiveVisualizerStyle.wave =>
-                                  Icons.waves_rounded,
-                                ReactiveVisualizerStyle.bars =>
-                                  Icons.equalizer_rounded,
-                              },
-                              selected: _style == style,
-                              onTap: () => setState(() => _style = style),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final columns = constraints.maxWidth < 360 ? 2 : 3;
+                    final width =
+                        (constraints.maxWidth - (columns - 1) * 8) / columns;
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: ReactiveVisualizerStyle.values
+                          .map(
+                            (style) => SizedBox(
+                              width: width,
+                              child: _Choice(
+                                label: switch (style) {
+                                  ReactiveVisualizerStyle.orb => 'Orb',
+                                  ReactiveVisualizerStyle.wave => 'Wave',
+                                  ReactiveVisualizerStyle.bars => 'Spectrum',
+                                  ReactiveVisualizerStyle.upwardBars =>
+                                    'Up bars',
+                                  ReactiveVisualizerStyle.voiceBars =>
+                                    'Voice bars',
+                                  ReactiveVisualizerStyle.halo => 'Halo',
+                                },
+                                icon: switch (style) {
+                                  ReactiveVisualizerStyle.orb =>
+                                    Icons.blur_circular_rounded,
+                                  ReactiveVisualizerStyle.wave =>
+                                    Icons.waves_rounded,
+                                  ReactiveVisualizerStyle.bars =>
+                                    Icons.equalizer_rounded,
+                                  ReactiveVisualizerStyle.upwardBars =>
+                                    Icons.bar_chart_rounded,
+                                  ReactiveVisualizerStyle.voiceBars =>
+                                    Icons.graphic_eq_rounded,
+                                  ReactiveVisualizerStyle.halo =>
+                                    Icons.donut_large_rounded,
+                                },
+                                selected: _style == style,
+                                onTap: () => setState(() => _style = style),
+                              ),
                             ),
-                          ),
-                        ),
-                      )
-                      .toList(),
+                          )
+                          .toList(),
+                    );
+                  },
                 ),
                 const SizedBox(height: 18),
                 Row(
@@ -261,6 +295,64 @@ class _VisualizerShowcaseState extends State<VisualizerShowcase>
                   ],
                 ),
                 const SizedBox(height: 18),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: const Text('Colors', style: TextStyle(fontSize: 13)),
+                  subtitle: const Text(
+                    'Active palette & resting color',
+                    style: TextStyle(color: _muted, fontSize: 11),
+                  ),
+                  childrenPadding: const EdgeInsets.only(bottom: 16),
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: DemoPalette.values
+                          .map(
+                            (palette) => ChoiceChip(
+                              label: Text(switch (palette) {
+                                DemoPalette.speaker => 'Speaker colors',
+                                DemoPalette.violet => 'Violet',
+                                DemoPalette.emerald => 'Emerald',
+                              }),
+                              selected: _palette == palette,
+                              onSelected: (_) =>
+                                  setState(() => _palette = palette),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('Keep active color'),
+                          selected: _inactiveColor == null,
+                          onSelected: (_) =>
+                              setState(() => _inactiveColor = null),
+                        ),
+                        for (final entry in const {
+                          'Gray idle': Color(0xFF6B7280),
+                          'Slate idle': Color(0xFF486675),
+                          'Rose idle': Color(0xFFAC768C),
+                        }.entries)
+                          ChoiceChip(
+                            label: Text(entry.key),
+                            avatar: CircleAvatar(
+                              backgroundColor: entry.value,
+                              radius: 6,
+                            ),
+                            selected: _inactiveColor == entry.value,
+                            onSelected: (_) =>
+                                setState(() => _inactiveColor = entry.value),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 if (_useMicrophone) ...[
                   FilledButton.icon(
                     onPressed: _microphone.isBusy
@@ -333,7 +425,8 @@ class _VisualizerShowcaseState extends State<VisualizerShowcase>
                                     (_useMicrophone
                                         ? _microphone.isRecording
                                         : _playing)
-                                    ? _speaker.secondaryColor
+                                    ? (_customSecondaryColor ??
+                                          _speaker.secondaryColor)
                                     : _muted,
                                 shape: BoxShape.circle,
                               ),
@@ -372,6 +465,11 @@ class _VisualizerShowcaseState extends State<VisualizerShowcase>
                               : _stream.stream,
                           sampleRate: _sampleRate,
                           speaker: _speaker,
+                          localColor: _customColor,
+                          localSecondaryColor: _customSecondaryColor,
+                          remoteColor: _customColor,
+                          remoteSecondaryColor: _customSecondaryColor,
+                          inactiveColor: _inactiveColor,
                           style: _style,
                           size: Size(
                             double.infinity,
@@ -391,6 +489,12 @@ class _VisualizerShowcaseState extends State<VisualizerShowcase>
                                   'Let the sound flow.',
                                 ReactiveVisualizerStyle.bars =>
                                   'Every frequency, its own rhythm.',
+                                ReactiveVisualizerStyle.upwardBars =>
+                                  'Only up from here.',
+                                ReactiveVisualizerStyle.voiceBars =>
+                                  'A voice, with character.',
+                                ReactiveVisualizerStyle.halo =>
+                                  'A ring of sound.',
                               },
                               textAlign: TextAlign.center,
                               style: const TextStyle(
@@ -406,6 +510,10 @@ class _VisualizerShowcaseState extends State<VisualizerShowcase>
                                   'Bass expands · voice shapes · highs ripple',
                                 ReactiveVisualizerStyle.wave => 'Layered waves follow the energy of your sound',
                                 ReactiveVisualizerStyle.bars => 'Low frequencies on the left, highs on the right',
+                                ReactiveVisualizerStyle.upwardBars => 'Grounded at the base · lifted by every frequency',
+                                ReactiveVisualizerStyle.voiceBars => 'Five soft bars · bright with sound, calm in silence',
+                                ReactiveVisualizerStyle.halo =>
+                                  'A quiet halo that lights up with your voice',
                               },
                               textAlign: TextAlign.center,
                               style: const TextStyle(

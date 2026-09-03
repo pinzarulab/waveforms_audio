@@ -35,10 +35,27 @@ void main() {
         const RepaintBoundary(key: previewKey, child: MyApp()),
       );
       expect(find.text('Sound, with a pulse.'), findsOneWidget);
+      await tester.ensureVisible(find.text('Demo signal'));
       await tester.tap(find.text('Demo signal'));
       await tester.pump();
       expect(find.byType(ReactiveAudioVisualizer), findsOneWidget);
-      for (final style in ['Orb', 'Wave', 'Spectrum']) {
+      expect(
+        tester
+            .widget<ReactiveAudioVisualizer>(
+              find.byType(ReactiveAudioVisualizer),
+            )
+            .inactiveColor,
+        isNull,
+      );
+      for (final style in [
+        'Orb',
+        'Wave',
+        'Spectrum',
+        'Up bars',
+        'Voice bars',
+        'Halo',
+      ]) {
+        await tester.ensureVisible(find.text(style));
         await tester.tap(find.text(style));
         for (var i = 0; i < 70; i++) {
           await tester.pump(const Duration(milliseconds: 16));
@@ -78,6 +95,31 @@ void main() {
           }
         }
       }
+      await tester.ensureVisible(find.text('Colors'));
+      await tester.tap(find.text('Colors'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.ensureVisible(find.text('Emerald'));
+      await tester.tap(find.text('Emerald'));
+      await tester.ensureVisible(find.text('Rose idle'));
+      await tester.tap(find.text('Rose idle'));
+      await tester.pump();
+      final visualizer = tester.widget<ReactiveAudioVisualizer>(
+        find.byType(ReactiveAudioVisualizer),
+      );
+      expect(visualizer.color, const Color(0xFF23D997));
+      expect(visualizer.inactiveColor, const Color(0xFFAC768C));
+      await tester.ensureVisible(find.text('Keep active color'));
+      await tester.tap(find.text('Keep active color'));
+      await tester.pump();
+      expect(
+        tester
+            .widget<ReactiveAudioVisualizer>(
+              find.byType(ReactiveAudioVisualizer),
+            )
+            .inactiveColor,
+        isNull,
+      );
       for (final source in ['Bass', 'Air', 'Voice']) {
         await tester.ensureVisible(find.text(source));
         await tester.tap(find.text(source));

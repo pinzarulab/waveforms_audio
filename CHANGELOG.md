@@ -1,5 +1,14 @@
 ## 0.0.1
 
+* Add `upwardBars`, `voiceBars`, and `halo` reactive styles.
+* Add optional `inactiveColor` to reactive and voice-chat visualizers. By default,
+  the active palette remains visible during silence; an explicit resting color
+  enables energy-driven fading.
+* Extend the example with a responsive six-style picker and active/idle palette controls.
+
+* Allow independent local and remote gradient overrides in `VoiceChatVisualizer`,
+  retaining preset defaults and smooth speaker transitions.
+
 * Add `VoiceChatVisualizer` with smooth blue–cyan local and red–orange remote/AI
   speaker palettes, plus a reusable streaming `Pcm16Decoder`.
 * Add opt-in microphone capture to the example, platform permissions, denied-access

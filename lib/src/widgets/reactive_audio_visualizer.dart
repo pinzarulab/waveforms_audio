@@ -10,8 +10,8 @@ import '../painters/reactive_waveform_painter.dart';
 /// Frequency-driven motion for voice, music, or any mono PCM stream.
 ///
 /// Supply normalized PCM (-1–1), not peak values or encoded audio bytes.
-/// [sampleRate] must match the source. Use [style] to choose an organic orb,
-/// layered wave, or low-to-high logarithmic frequency bars.
+/// [sampleRate] must match the source. Use [style] to choose an orb, wave,
+/// centered/upward spectrum bars, five voice bars, or a segmented halo.
 class ReactiveAudioVisualizer extends StatefulWidget {
   final Stream<List<double>> audioStream;
   final int sampleRate;
@@ -21,6 +21,10 @@ class ReactiveAudioVisualizer extends StatefulWidget {
   final ReactiveVisualizerStyle style;
   final Color color;
   final Color secondaryColor;
+
+  /// Optional resting color, blended into the active gradient as audio rises.
+  /// Null keeps the active palette even in silence.
+  final Color? inactiveColor;
   final Duration attack;
   final Duration release;
 
@@ -34,6 +38,7 @@ class ReactiveAudioVisualizer extends StatefulWidget {
     this.style = ReactiveVisualizerStyle.orb,
     this.color = const Color(0xFF72F5D1),
     this.secondaryColor = const Color(0xFF6B8CFF),
+    this.inactiveColor,
     this.attack = const Duration(milliseconds: 45),
     this.release = const Duration(milliseconds: 320),
   });
@@ -192,6 +197,7 @@ class _ReactiveAudioVisualizerState extends State<ReactiveAudioVisualizer>
             style: widget.style,
             color: widget.color,
             secondaryColor: widget.secondaryColor,
+            inactiveColor: widget.inactiveColor,
             reducedMotion: _reducedMotion,
           ),
         ),
