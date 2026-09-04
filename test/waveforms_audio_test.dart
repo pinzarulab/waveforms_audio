@@ -5,6 +5,10 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:waveforms_audio/waveforms_audio.dart';
+import 'package:waveforms_audio/src/painters/circular_waveform_painter.dart';
+import 'package:waveforms_audio/src/painters/linear_waveform_painter.dart';
+import 'package:waveforms_audio/src/painters/oval_waveform_painter.dart';
+import 'package:waveforms_audio/src/painters/visualizer_painter.dart';
 
 Widget host(Widget child, {bool reducedMotion = false}) => MediaQuery(
   data: MediaQueryData(disableAnimations: reducedMotion),
@@ -31,7 +35,32 @@ class RecordingCanvas implements Canvas {
 }
 
 void main() {
-  const data = AudioData(samples: [0.2, 0.8, 0.5]);
+  final data = AudioData(samples: const [0.2, 0.8, 0.5]);
+
+  test('AudioData snapshots samples and exposes an unmodifiable list', () {
+    final source = <double>[0.2, 0.8];
+    final snapshot = AudioData(samples: source);
+    source[0] = 1;
+    expect(snapshot.samples, [0.2, 0.8]);
+    expect(() => snapshot.samples[0] = 1, throwsUnsupportedError);
+  });
+
+  test('linear spacing changes the distance between bars', () {
+    Float32List points(double spacing) {
+      final canvas = RecordingCanvas();
+      LinearWaveformPainter(
+        audioData: AudioData(samples: const [1, 1, 1]),
+        color: Colors.blue,
+        strokeWidth: 2,
+        spacing: spacing,
+      ).paint(canvas, const Size(100, 40));
+      return canvas.points;
+    }
+
+    final touching = points(0);
+    final separated = points(10);
+    expect(separated[4] - separated[0], greaterThan(touching[4] - touching[0]));
+  });
 
   test('pulse has a seamless loop and never collapses the waveform', () {
     double scale(double phase) => LinearWaveformPainter(
@@ -64,7 +93,7 @@ void main() {
       await tester.pumpWidget(
         visualizer(
           const Duration(seconds: 2),
-          const AudioData(samples: [0.5, 0.2, 0.9]),
+          AudioData(samples: [0.5, 0.2, 0.9]),
         ),
       );
       await tester.pump(const Duration(milliseconds: 500));
@@ -113,9 +142,7 @@ void main() {
       );
       await tester.pumpWidget(visualizer(false, data));
       await tester.pump(const Duration(milliseconds: 300));
-      await tester.pumpWidget(
-        visualizer(true, const AudioData(samples: [1, 1, 1])),
-      );
+      await tester.pumpWidget(visualizer(true, AudioData(samples: [1, 1, 1])));
       final stopped = painter(tester).animationValue;
       expect(
         (painter(tester) as CircularWaveformPainter).animatePulsate,
@@ -140,10 +167,10 @@ void main() {
   testWidgets(
     'zero transition duration and changed sample counts update immediately',
     (tester) async {
-      await tester.pumpWidget(host(const AudioVisualizer(audioData: data)));
+      await tester.pumpWidget(host(AudioVisualizer(audioData: data)));
       await tester.pumpWidget(
         host(
-          const AudioVisualizer(
+          AudioVisualizer(
             audioData: AudioData(samples: [1, 1, 1]),
             transitionDuration: Duration.zero,
           ),
@@ -194,7 +221,7 @@ void main() {
     Float32List points(double phase) {
       final canvas = RecordingCanvas();
       OvalWaveformPainter(
-        audioData: const AudioData(samples: [1, 0.5, 0.2, 0.8]),
+        audioData: AudioData(samples: [1, 0.5, 0.2, 0.8]),
         color: Colors.blue,
         strokeWidth: 2,
         animateRotation: true,
@@ -217,14 +244,14 @@ void main() {
       for (final phase in [0.0, 0.125, 0.25, 0.5]) {
         for (final radialPainter in <VisualizerPainter>[
           CircularWaveformPainter(
-            audioData: const AudioData(samples: [1, 1, 1, 1, 1, 1, 1, 1]),
+            audioData: AudioData(samples: [1, 1, 1, 1, 1, 1, 1, 1]),
             color: Colors.blue,
             strokeWidth: 2,
             animateRotation: true,
             animationValue: phase,
           ),
           OvalWaveformPainter(
-            audioData: const AudioData(samples: [1, 1, 1, 1, 1, 1, 1, 1]),
+            audioData: AudioData(samples: [1, 1, 1, 1, 1, 1, 1, 1]),
             color: Colors.blue,
             strokeWidth: 2,
             animateRotation: true,

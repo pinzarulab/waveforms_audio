@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'audio_motion.dart';
+
 /// Normalized frequency energy. Values are in the range 0–1.
 class AudioSpectrum {
   final List<double> bands;
@@ -8,6 +10,8 @@ class AudioSpectrum {
   final double mids;
   final double treble;
   final double level;
+  final double peak;
+  final double voiceActivity;
 
   const AudioSpectrum({
     required this.bands,
@@ -15,6 +19,8 @@ class AudioSpectrum {
     this.mids = 0,
     this.treble = 0,
     this.level = 0,
+    this.peak = 0,
+    this.voiceActivity = 0,
   });
 
   factory AudioSpectrum.silence(int bandCount) =>
@@ -30,15 +36,20 @@ class FrequencyAnalyzer {
   final int sampleRate;
   final int fftSize;
   final int bandCount;
+  final double noiseGate;
+  final bool adaptiveGain;
   late final Float64List _samples;
   late final Float64List _window;
   late final double _windowSum;
   int _writeIndex = 0;
+  double _gainReference = 0.08;
 
   FrequencyAnalyzer({
     required this.sampleRate,
     this.fftSize = 2048,
     this.bandCount = 32,
+    this.noiseGate = 0.003,
+    this.adaptiveGain = false,
   }) {
     if (sampleRate < 8000) {
       throw ArgumentError.value(
@@ -60,6 +71,9 @@ class FrequencyAnalyzer {
         'bandCount',
         'Must be between 3 and 128',
       );
+    }
+    if (!noiseGate.isFinite || noiseGate < 0 || noiseGate >= 1) {
+      throw ArgumentError.value(noiseGate, 'noiseGate', 'Must be from 0 to 1');
     }
     _samples = Float64List(fftSize);
     _window = Float64List.fromList(
@@ -98,7 +112,15 @@ class FrequencyAnalyzer {
     }
     final rms = math.sqrt(sumSquares / fftSize);
     // Suppress the noise floor; silence should settle, never fill the display.
-    if (rms < 0.003) return AudioSpectrum.silence(bandCount);
+    if (rms < noiseGate) return AudioSpectrum.silence(bandCount);
+    var gain = 1.0;
+    if (adaptiveGain) {
+      // Follow loudness slowly. Quiet voices become visible without flattening
+      // the dynamics inside each phrase.
+      _gainReference +=
+          (rms - _gainReference) * (rms > _gainReference ? 0.08 : 0.015);
+      gain = (0.18 / math.max(_gainReference, noiseGate)).clamp(0.55, 7.0);
+    }
     _fft(real, imaginary);
     final magnitudes = Float64List(fftSize ~/ 2 + 1);
     for (var i = 1; i < magnitudes.length; i++) {
@@ -126,7 +148,7 @@ class FrequencyAnalyzer {
         }
       }
       final db = 20 * math.log(math.max(peak, 1e-6)) / math.ln10;
-      return ((db + 60) / 54).clamp(0.0, 1.0);
+      return (((db + 60) / 54) * math.sqrt(gain)).clamp(0.0, 1.0);
     }
 
     final bands = List<double>.generate(bandCount, (i) {
@@ -137,12 +159,23 @@ class FrequencyAnalyzer {
           math.pow(maxFrequency / minFrequency, (i + 1) / bandCount);
       return energy(low, high);
     });
+    final bass = energy(60, 250);
+    final mids = energy(250, 2000);
+    final treble = energy(2000, maxFrequency);
+    final level = (rms * gain / 0.4).clamp(0.0, 1.0);
+    final voiceActivity =
+        ((mids * 0.72 + level * 0.28) - bass * 0.10 - treble * 0.04).clamp(
+          0.0,
+          1.0,
+        );
     return AudioSpectrum(
       bands: bands,
-      bass: energy(60, 250),
-      mids: energy(250, 2000),
-      treble: energy(2000, maxFrequency),
-      level: (rms / 0.4).clamp(0.0, 1.0),
+      bass: bass,
+      mids: mids,
+      treble: treble,
+      level: level,
+      peak: level,
+      voiceActivity: voiceActivity,
     );
   }
 
@@ -187,22 +220,31 @@ class FrequencyAnalyzer {
 /// Time-based attack/release envelope: quick response, unhurried settling.
 /// Smoothing remains consistent across display refresh rates.
 class SpectrumEnvelope {
-  final Duration attack;
-  final Duration release;
+  final AudioMotionSettings motion;
   AudioSpectrum value;
+  Duration _peakHeld = Duration.zero;
 
   SpectrumEnvelope({
     int bandCount = 32,
-    this.attack = const Duration(milliseconds: 45),
-    this.release = const Duration(milliseconds: 320),
-  }) : value = AudioSpectrum.silence(bandCount) {
-    if (attack <= Duration.zero || release <= Duration.zero) {
-      throw ArgumentError('Attack and release must be positive');
-    }
-  }
+    AudioMotionSettings? motion,
+    Duration? attack,
+    Duration? release,
+  }) : motion =
+           motion ??
+           AudioMotionSettings.preset(AudioMotionPreset.voice).copyWith(
+             bassAttack: attack,
+             midsAttack: attack,
+             trebleAttack: attack,
+             levelAttack: attack,
+             bassRelease: release,
+             midsRelease: release,
+             trebleRelease: release,
+             levelRelease: release,
+           ),
+       value = AudioSpectrum.silence(bandCount);
 
   AudioSpectrum advance(AudioSpectrum target, Duration elapsed) {
-    double follow(double from, double to) {
+    double follow(double from, double to, Duration attack, Duration release) {
       final duration = to > from ? attack : release;
       final t =
           1 -
@@ -213,19 +255,74 @@ class SpectrumEnvelope {
       return next < 0.0005 ? 0 : next;
     }
 
+    final bass = follow(
+      value.bass,
+      target.bass,
+      motion.bassAttack,
+      motion.bassRelease,
+    );
+    final mids = follow(
+      value.mids,
+      target.mids,
+      motion.midsAttack,
+      motion.midsRelease,
+    );
+    final treble = follow(
+      value.treble,
+      target.treble,
+      motion.trebleAttack,
+      motion.trebleRelease,
+    );
+    final level = follow(
+      value.level,
+      target.level,
+      motion.levelAttack,
+      motion.levelRelease,
+    );
+    final peak = _advancePeak(target.peak, elapsed);
     value = AudioSpectrum(
-      bands: List.generate(
-        target.bands.length,
-        (i) => follow(
+      bands: List.generate(target.bands.length, (i) {
+        final position = i / math.max(1, target.bands.length - 1);
+        final attack = position < 0.22
+            ? motion.bassAttack
+            : position < 0.68
+            ? motion.midsAttack
+            : motion.trebleAttack;
+        final release = position < 0.22
+            ? motion.bassRelease
+            : position < 0.68
+            ? motion.midsRelease
+            : motion.trebleRelease;
+        return follow(
           i < value.bands.length ? value.bands[i] : 0,
           target.bands[i],
-        ),
+          attack,
+          release,
+        );
+      }),
+      bass: bass,
+      mids: mids,
+      treble: treble,
+      level: level,
+      peak: peak,
+      voiceActivity: follow(
+        value.voiceActivity,
+        target.voiceActivity,
+        motion.midsAttack,
+        motion.midsRelease,
       ),
-      bass: follow(value.bass, target.bass),
-      mids: follow(value.mids, target.mids),
-      treble: follow(value.treble, target.treble),
-      level: follow(value.level, target.level),
     );
     return value;
+  }
+
+  double _advancePeak(double target, Duration elapsed) {
+    if (target >= value.peak) {
+      _peakHeld = Duration.zero;
+      return target;
+    }
+    _peakHeld += elapsed;
+    if (_peakHeld <= motion.peakHold) return value.peak;
+    final fall = motion.peakFalloff * elapsed.inMicroseconds / 1000000;
+    return math.max(target, value.peak - fall).clamp(0.0, 1.0);
   }
 }

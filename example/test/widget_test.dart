@@ -44,6 +44,7 @@ void main() {
             .widget<ReactiveAudioVisualizer>(
               find.byType(ReactiveAudioVisualizer),
             )
+            .style
             .inactiveColor,
         isNull,
       );
@@ -107,8 +108,8 @@ void main() {
       final visualizer = tester.widget<ReactiveAudioVisualizer>(
         find.byType(ReactiveAudioVisualizer),
       );
-      expect(visualizer.color, const Color(0xFF23D997));
-      expect(visualizer.inactiveColor, const Color(0xFFAC768C));
+      expect(visualizer.style.colors.first, const Color(0xFF23D997));
+      expect(visualizer.style.inactiveColor, const Color(0xFFAC768C));
       await tester.ensureVisible(find.text('Keep active color'));
       await tester.tap(find.text('Keep active color'));
       await tester.pump();
@@ -117,6 +118,7 @@ void main() {
             .widget<ReactiveAudioVisualizer>(
               find.byType(ReactiveAudioVisualizer),
             )
+            .style
             .inactiveColor,
         isNull,
       );
@@ -130,7 +132,7 @@ void main() {
       }
       await tester.ensureVisible(find.byTooltip('Pause signal'));
       await tester.tap(find.byTooltip('Pause signal'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 300));
       expect(find.byTooltip('Resume signal'), findsOneWidget);
       tester.view.physicalSize = const Size(320, 720);
       await tester.pump();

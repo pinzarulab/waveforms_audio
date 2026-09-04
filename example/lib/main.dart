@@ -6,7 +6,19 @@ import 'package:waveforms_audio/waveforms_audio.dart';
 
 import 'microphone_input.dart';
 
-void main() => runApp(const MyApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  unawaited(_precacheShaders());
+  runApp(const MyApp());
+}
+
+Future<void> _precacheShaders() async {
+  try {
+    await precacheWaveformsAudioShaders();
+  } catch (_) {
+    // The widgets retain their Canvas fallback on unsupported platforms.
+  }
+}
 
 const _mint = Color(0xFF9AF2D2);
 const _muted = Color(0xFF889B98);
@@ -15,6 +27,86 @@ const _background = Color(0xFF0B1212);
 enum DemoSignal { bass, voice, air }
 
 enum DemoPalette { speaker, violet, emerald }
+
+extension DemoStyle on VoiceVisualizerKind {
+  String get label => switch (this) {
+    VoiceVisualizerKind.orb => 'Orb',
+    VoiceVisualizerKind.wave => 'Wave',
+    VoiceVisualizerKind.bars => 'Spectrum',
+    VoiceVisualizerKind.upwardBars => 'Up bars',
+    VoiceVisualizerKind.voiceBars => 'Voice bars',
+    VoiceVisualizerKind.halo => 'Halo',
+    VoiceVisualizerKind.mirrorSpectrum => 'Mirror',
+    VoiceVisualizerKind.ribbon => 'Ribbon',
+    VoiceVisualizerKind.liquidOrb => 'Liquid orb',
+    VoiceVisualizerKind.pulseRings => 'Pulse rings',
+    VoiceVisualizerKind.dotSpectrum => 'Dots',
+    VoiceVisualizerKind.capsuleBars => 'Capsules',
+    VoiceVisualizerKind.voiceBloom => 'Bloom',
+    VoiceVisualizerKind.minimalLine => 'Minimal',
+  };
+
+  IconData get icon => switch (this) {
+    VoiceVisualizerKind.orb ||
+    VoiceVisualizerKind.liquidOrb => Icons.blur_circular_rounded,
+    VoiceVisualizerKind.wave ||
+    VoiceVisualizerKind.ribbon ||
+    VoiceVisualizerKind.minimalLine => Icons.waves_rounded,
+    VoiceVisualizerKind.bars ||
+    VoiceVisualizerKind.mirrorSpectrum ||
+    VoiceVisualizerKind.capsuleBars => Icons.equalizer_rounded,
+    VoiceVisualizerKind.upwardBars ||
+    VoiceVisualizerKind.dotSpectrum => Icons.bar_chart_rounded,
+    VoiceVisualizerKind.voiceBars => Icons.graphic_eq_rounded,
+    VoiceVisualizerKind.halo ||
+    VoiceVisualizerKind.pulseRings => Icons.donut_large_rounded,
+    VoiceVisualizerKind.voiceBloom => Icons.filter_vintage_rounded,
+  };
+
+  String get title => switch (this) {
+    VoiceVisualizerKind.orb => 'A little more alive.',
+    VoiceVisualizerKind.wave => 'Let the sound flow.',
+    VoiceVisualizerKind.bars => 'Every frequency, its own rhythm.',
+    VoiceVisualizerKind.upwardBars => 'Only up from here.',
+    VoiceVisualizerKind.voiceBars => 'A voice, with character.',
+    VoiceVisualizerKind.halo => 'A ring of sound.',
+    VoiceVisualizerKind.mirrorSpectrum => 'Sound in balance.',
+    VoiceVisualizerKind.ribbon => 'A ribbon of voice.',
+    VoiceVisualizerKind.liquidOrb => 'Fluid and alive.',
+    VoiceVisualizerKind.pulseRings => 'Every phrase sends a pulse.',
+    VoiceVisualizerKind.dotSpectrum => 'Sound, point by point.',
+    VoiceVisualizerKind.capsuleBars => 'Clean, calm energy.',
+    VoiceVisualizerKind.voiceBloom => 'Let the voice bloom.',
+    VoiceVisualizerKind.minimalLine => 'Just the signal.',
+  };
+
+  String get subtitle => switch (this) {
+    VoiceVisualizerKind.orb => 'Bass expands · voice shapes · highs ripple',
+    VoiceVisualizerKind.wave => 'Layered waves follow the energy of your sound',
+    VoiceVisualizerKind.bars =>
+      'Low frequencies on the left, highs on the right',
+    VoiceVisualizerKind.upwardBars =>
+      'Grounded at the base · lifted by every frequency',
+    VoiceVisualizerKind.voiceBars =>
+      'Soft bars · bright with sound, calm in silence',
+    VoiceVisualizerKind.halo => 'A quiet halo that lights up with your voice',
+    VoiceVisualizerKind.mirrorSpectrum =>
+      'A centered spectrum reflected around the baseline',
+    VoiceVisualizerKind.ribbon =>
+      'Layered strands move with each frequency range',
+    VoiceVisualizerKind.liquidOrb =>
+      'A softer membrane with detailed frequency motion',
+    VoiceVisualizerKind.pulseRings => 'Concentric rings carry peaks into space',
+    VoiceVisualizerKind.dotSpectrum =>
+      'Frequency points rise and leave quiet trails',
+    VoiceVisualizerKind.capsuleBars =>
+      'Inactive tracks fill with live audio energy',
+    VoiceVisualizerKind.voiceBloom =>
+      'Voice activity opens a radial field of petals',
+    VoiceVisualizerKind.minimalLine =>
+      'A compact waveform for calls and small controls',
+  };
+}
 
 class MyApp extends StatelessWidget {
   final MicrophoneInput? microphoneInput;
@@ -67,7 +159,7 @@ class _VisualizerShowcaseState extends State<VisualizerShowcase>
     DemoPalette.violet => const Color(0xFFF28DCE),
     DemoPalette.emerald => const Color(0xFFB8F76B),
   };
-  ReactiveVisualizerStyle _style = ReactiveVisualizerStyle.orb;
+  VoiceVisualizerKind _style = VoiceVisualizerKind.orb;
   DemoSignal _signal = DemoSignal.voice;
   bool _playing = true;
   int _sampleCursor = 0;
@@ -210,35 +302,13 @@ class _VisualizerShowcaseState extends State<VisualizerShowcase>
                     return Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: ReactiveVisualizerStyle.values
+                      children: VoiceVisualizerKind.values
                           .map(
                             (style) => SizedBox(
                               width: width,
                               child: _Choice(
-                                label: switch (style) {
-                                  ReactiveVisualizerStyle.orb => 'Orb',
-                                  ReactiveVisualizerStyle.wave => 'Wave',
-                                  ReactiveVisualizerStyle.bars => 'Spectrum',
-                                  ReactiveVisualizerStyle.upwardBars =>
-                                    'Up bars',
-                                  ReactiveVisualizerStyle.voiceBars =>
-                                    'Voice bars',
-                                  ReactiveVisualizerStyle.halo => 'Halo',
-                                },
-                                icon: switch (style) {
-                                  ReactiveVisualizerStyle.orb =>
-                                    Icons.blur_circular_rounded,
-                                  ReactiveVisualizerStyle.wave =>
-                                    Icons.waves_rounded,
-                                  ReactiveVisualizerStyle.bars =>
-                                    Icons.equalizer_rounded,
-                                  ReactiveVisualizerStyle.upwardBars =>
-                                    Icons.bar_chart_rounded,
-                                  ReactiveVisualizerStyle.voiceBars =>
-                                    Icons.graphic_eq_rounded,
-                                  ReactiveVisualizerStyle.halo =>
-                                    Icons.donut_large_rounded,
-                                },
+                                label: style.label,
+                                icon: style.icon,
                                 selected: _style == style,
                                 onTap: () => setState(() => _style = style),
                               ),
@@ -426,7 +496,7 @@ class _VisualizerShowcaseState extends State<VisualizerShowcase>
                                         ? _microphone.isRecording
                                         : _playing)
                                     ? (_customSecondaryColor ??
-                                          _speaker.secondaryColor)
+                                          _speaker.colors.last)
                                     : _muted,
                                 shape: BoxShape.circle,
                               ),
@@ -465,12 +535,19 @@ class _VisualizerShowcaseState extends State<VisualizerShowcase>
                               : _stream.stream,
                           sampleRate: _sampleRate,
                           speaker: _speaker,
-                          localColor: _customColor,
-                          localSecondaryColor: _customSecondaryColor,
-                          remoteColor: _customColor,
-                          remoteSecondaryColor: _customSecondaryColor,
-                          inactiveColor: _inactiveColor,
-                          style: _style,
+                          localColors: _customColor == null
+                              ? null
+                              : [_customColor!, _customSecondaryColor!],
+                          remoteColors: _customColor == null
+                              ? null
+                              : [_customColor!, _customSecondaryColor!],
+                          style: VoiceVisualizerStyle(
+                            kind: _style,
+                            inactiveColor: _inactiveColor,
+                            barCount: _style == VoiceVisualizerKind.voiceBars
+                                ? 5
+                                : 32,
+                          ),
                           size: Size(
                             double.infinity,
                             math.min(340, constraints.maxWidth * 0.92),
@@ -482,20 +559,7 @@ class _VisualizerShowcaseState extends State<VisualizerShowcase>
                         child: Column(
                           children: [
                             Text(
-                              switch (_style) {
-                                ReactiveVisualizerStyle.orb =>
-                                  'A little more alive.',
-                                ReactiveVisualizerStyle.wave =>
-                                  'Let the sound flow.',
-                                ReactiveVisualizerStyle.bars =>
-                                  'Every frequency, its own rhythm.',
-                                ReactiveVisualizerStyle.upwardBars =>
-                                  'Only up from here.',
-                                ReactiveVisualizerStyle.voiceBars =>
-                                  'A voice, with character.',
-                                ReactiveVisualizerStyle.halo =>
-                                  'A ring of sound.',
-                              },
+                              _style.title,
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 fontSize: 17,
@@ -505,16 +569,7 @@ class _VisualizerShowcaseState extends State<VisualizerShowcase>
                             ),
                             const SizedBox(height: 7),
                             Text(
-                              switch (_style) {
-                                ReactiveVisualizerStyle.orb =>
-                                  'Bass expands · voice shapes · highs ripple',
-                                ReactiveVisualizerStyle.wave => 'Layered waves follow the energy of your sound',
-                                ReactiveVisualizerStyle.bars => 'Low frequencies on the left, highs on the right',
-                                ReactiveVisualizerStyle.upwardBars => 'Grounded at the base · lifted by every frequency',
-                                ReactiveVisualizerStyle.voiceBars => 'Five soft bars · bright with sound, calm in silence',
-                                ReactiveVisualizerStyle.halo =>
-                                  'A quiet halo that lights up with your voice',
-                              },
+                              _style.subtitle,
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 color: _muted,

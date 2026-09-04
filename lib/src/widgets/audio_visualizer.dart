@@ -15,6 +15,7 @@ class AudioVisualizer extends StatefulWidget {
   final VisualizerType type;
   final Color color;
   final double strokeWidth;
+  final double spacing;
   final bool animatePulsate;
   final bool animateRotation;
 
@@ -32,11 +33,13 @@ class AudioVisualizer extends StatefulWidget {
     this.type = VisualizerType.linear,
     this.color = Colors.blue,
     this.strokeWidth = 2.0,
+    this.spacing = 2.0,
     this.animatePulsate = false,
     this.animateRotation = false,
     this.animationDuration = const Duration(seconds: 2),
     this.transitionDuration = const Duration(milliseconds: 100),
-  });
+  }) : assert(strokeWidth > 0),
+       assert(spacing >= 0);
 
   @override
   State<AudioVisualizer> createState() => _AudioVisualizerState();
@@ -158,6 +161,7 @@ class _AudioVisualizerState extends State<AudioVisualizer>
                   audioData: data,
                   color: widget.color,
                   strokeWidth: widget.strokeWidth,
+                  spacing: widget.spacing,
                   animatePulsate: pulsate,
                   animationValue: _controller.value,
                 );

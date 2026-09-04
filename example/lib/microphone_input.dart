@@ -28,7 +28,12 @@ class RecordMicrophoneInput implements MicrophoneInput {
         noiseSuppress: true,
       ),
     );
-    final decoder = Pcm16Decoder();
+    final decoder = AudioDecoder(
+      const AudioFormat(
+        encoding: AudioEncoding.pcm16,
+        sampleRate: MicrophoneController.sampleRate,
+      ),
+    );
     return stream.map(decoder.addBytes).where((samples) => samples.isNotEmpty);
   }
 

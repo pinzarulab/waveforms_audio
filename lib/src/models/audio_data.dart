@@ -1,13 +1,25 @@
+import 'dart:collection';
+
+/// An immutable snapshot of normalized waveform samples.
 class AudioData {
   /// The normalized amplitude values (usually between 0.0 and 1.0 or -1.0 to 1.0).
   /// These are pre-processed to match the number of visual segments to be drawn.
-  final List<double> samples;
+  final UnmodifiableListView<double> samples;
 
   /// The maximum amplitude found in the original dataset before normalization.
   final double maxAmplitude;
 
-  const AudioData({required this.samples, this.maxAmplitude = 1.0});
+  AudioData({required Iterable<double> samples, this.maxAmplitude = 1.0})
+    : samples = UnmodifiableListView<double>(List<double>.of(samples)) {
+    if (!maxAmplitude.isFinite || maxAmplitude < 0) {
+      throw ArgumentError.value(
+        maxAmplitude,
+        'maxAmplitude',
+        'Must be finite and non-negative',
+      );
+    }
+  }
 
   /// Factory for an empty data set.
-  factory AudioData.empty() => const AudioData(samples: [], maxAmplitude: 1.0);
+  factory AudioData.empty() => AudioData(samples: const []);
 }

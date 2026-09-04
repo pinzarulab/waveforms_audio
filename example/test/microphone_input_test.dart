@@ -81,7 +81,8 @@ void main() {
       expect(input.starts, 0);
       await tester.ensureVisible(find.text('Start microphone'));
       await tester.tap(find.text('Start microphone'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       expect(input.starts, 1);
       expect(find.text('Stop microphone'), findsOneWidget);
       input.audio.add(List.generate(2048, (i) => i.isEven ? 0.5 : -0.5));
@@ -98,7 +99,8 @@ void main() {
         await Future<void>.delayed(Duration.zero);
       });
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       expect(input.stops, greaterThan(0));
       expect(find.text('Start microphone'), findsOneWidget);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);

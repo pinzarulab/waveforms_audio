@@ -4,8 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../audio/frequency_analyzer.dart';
-
-enum ReactiveVisualizerStyle { orb, wave, bars, upwardBars, voiceBars, halo }
+import '../styles/voice_visualizer_style.dart';
 
 class ReactiveFrame {
   final AudioSpectrum spectrum;
@@ -13,143 +12,610 @@ class ReactiveFrame {
   const ReactiveFrame(this.spectrum, this.phase);
 }
 
-/// Paints directly from a listenable so audio frames do not rebuild the UI.
 class ReactiveWaveformPainter extends CustomPainter {
   final ValueListenable<ReactiveFrame> animation;
-  final ReactiveVisualizerStyle style;
-  final Color color;
-  final Color secondaryColor;
-  final Color? inactiveColor;
+  final VoiceVisualizerStyle style;
   final bool reducedMotion;
+  final double idleBreathing;
 
   ReactiveWaveformPainter({
     required this.animation,
-    this.style = ReactiveVisualizerStyle.orb,
-    this.color = const Color(0xFF72F5D1),
-    this.secondaryColor = const Color(0xFF6B8CFF),
-    this.inactiveColor,
+    required this.style,
     this.reducedMotion = false,
+    this.idleBreathing = 0,
   }) : super(repaint: animation);
+
+  AudioSpectrum get spectrum => animation.value.spectrum;
+  double get phase => reducedMotion ? 0 : animation.value.phase;
+  List<Color> get palette => style.colors.isEmpty
+      ? const [Color(0xFF72F5D1), Color(0xFF6B8CFF)]
+      : style.colors;
+  double get activity => math.max(
+    spectrum.level,
+    math.max(
+      spectrum.peak,
+      math.max(spectrum.bass, math.max(spectrum.mids, spectrum.treble)),
+    ),
+  );
+  double get breath => reducedMotion || idleBreathing == 0
+      ? 0
+      : idleBreathing * (0.72 + math.sin(phase * math.pi * 2) * 0.28);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
     canvas.save();
     canvas.clipRect(Offset.zero & size);
-    switch (style) {
-      case ReactiveVisualizerStyle.orb:
+    _ambientGlow(canvas, size);
+    switch (style.kind) {
+      case VoiceVisualizerKind.orb:
         _orb(canvas, size);
-      case ReactiveVisualizerStyle.wave:
+      case VoiceVisualizerKind.wave:
         _wave(canvas, size);
-      case ReactiveVisualizerStyle.bars:
+      case VoiceVisualizerKind.bars:
+      case VoiceVisualizerKind.upwardBars:
         _bars(canvas, size);
-      case ReactiveVisualizerStyle.upwardBars:
-        _bars(canvas, size, upward: true);
-      case ReactiveVisualizerStyle.voiceBars:
+      case VoiceVisualizerKind.voiceBars:
         _voiceBars(canvas, size);
-      case ReactiveVisualizerStyle.halo:
+      case VoiceVisualizerKind.halo:
         _halo(canvas, size);
+      case VoiceVisualizerKind.mirrorSpectrum:
+        _mirrorSpectrum(canvas, size);
+      case VoiceVisualizerKind.ribbon:
+        _ribbon(canvas, size);
+      case VoiceVisualizerKind.liquidOrb:
+        _orb(canvas, size, liquid: true);
+      case VoiceVisualizerKind.pulseRings:
+        _pulseRings(canvas, size);
+      case VoiceVisualizerKind.dotSpectrum:
+        _dotSpectrum(canvas, size);
+      case VoiceVisualizerKind.capsuleBars:
+        _capsuleBars(canvas, size);
+      case VoiceVisualizerKind.voiceBloom:
+        _voiceBloom(canvas, size);
+      case VoiceVisualizerKind.minimalLine:
+        _minimalLine(canvas, size);
     }
     canvas.restore();
   }
 
-  void _orb(Canvas canvas, Size size) {
-    final frame = animation.value;
-    final spectrum = frame.spectrum;
-    final phase = reducedMotion ? 0.0 : frame.phase;
-    final bass = reducedMotion ? 0.0 : spectrum.bass;
-    final mids = reducedMotion ? 0.0 : spectrum.mids;
-    final treble = reducedMotion ? 0.0 : spectrum.treble;
+  Color _activeColor(double position) {
+    if (palette.length == 1) return palette.first;
+    final scaled = position.clamp(0.0, 1.0) * (palette.length - 1);
+    final index = scaled.floor().clamp(0, palette.length - 2);
+    return Color.lerp(palette[index], palette[index + 1], scaled - index)!;
+  }
+
+  Color _color(double energy, double position) {
+    final active = _activeColor(position);
+    if (style.inactiveColor case final inactive?) {
+      final amount = Curves.easeOut.transform((energy / 0.24).clamp(0.0, 1.0));
+      return Color.lerp(inactive, active, amount)!;
+    }
+    return active;
+  }
+
+  double _band(double position) {
+    final bands = spectrum.bands;
+    if (bands.isEmpty) return breath;
+    final value = position.clamp(0.0, 1.0) * (bands.length - 1);
+    final low = value.floor();
+    final high = math.min(low + 1, bands.length - 1);
+    final raw = bands[low] + (bands[high] - bands[low]) * (value - low);
+    final nearby =
+        bands[math.max(0, low - 1)] +
+        bands[math.min(bands.length - 1, high + 1)];
+    final idle =
+        breath * (0.78 + 0.22 * math.sin(position * math.pi * 5 + phase));
+    return math.max(raw * 0.72 + nearby * 0.14, idle).clamp(0.0, 1.0);
+  }
+
+  Paint _glow(double position, double energy, double blur) => Paint()
+    ..color = _color(
+      energy,
+      position,
+    ).withValues(alpha: style.glow * (0.1 + energy * 0.28))
+    ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
+
+  int _count({int minimum = 3, int maximum = 256}) =>
+      (style.barCount * style.density).round().clamp(minimum, maximum);
+
+  double _sourcePosition(double position) =>
+      style.symmetric ? (position - 0.5).abs() * 2 : position;
+
+  void _ambientGlow(Canvas canvas, Size size) {
+    if (style.glow == 0) return;
+    final energy = math.max(activity, breath);
     final center = Offset(size.width / 2, size.height / 2);
-    final unit = size.shortestSide;
-    final color = _energyColor(_activity, 0);
-    final secondaryColor = _energyColor(_activity, 1);
-    final radius =
-        unit *
-        (0.23 + bass * 0.045 + (reducedMotion ? 0 : spectrum.level) * 0.025);
-    final glowRadius = radius * 1.6;
+    final radius = size.shortestSide * 0.42;
     canvas.drawCircle(
       center,
-      glowRadius,
+      radius,
       Paint()
         ..shader = RadialGradient(
           colors: [
-            color.withValues(alpha: 0.09 + spectrum.level * 0.12),
-            secondaryColor.withValues(alpha: 0.04),
-            color.withValues(alpha: 0),
+            _color(
+              energy,
+              0.5,
+            ).withValues(alpha: style.glow * (0.025 + energy * 0.07)),
+            _color(energy, 0.5).withValues(alpha: 0),
           ],
-        ).createShader(Rect.fromCircle(center: center, radius: glowRadius)),
+        ).createShader(Rect.fromCircle(center: center, radius: radius)),
     );
+  }
 
-    // Three continuous membranes share the beat, but deform independently.
-    for (var layer = 2; layer >= 0; layer--) {
-      final offset = layer * 1.9;
+  void _orb(Canvas canvas, Size size, {bool liquid = false}) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final unit = size.shortestSide;
+    final energy = math.max(activity, breath);
+    final radius =
+        unit * (liquid ? 0.21 : 0.23) * (1 + spectrum.bass * 0.14 + breath);
+    if (style.glow > 0) {
+      canvas.drawCircle(center, radius * 1.2, _glow(0.5, energy, unit * 0.09));
+    }
+    final layers = liquid ? 4 : 3;
+    final count = (88 * style.density).round().clamp(48, 220);
+    for (var layer = layers - 1; layer >= 0; layer--) {
       final points = <Offset>[];
-      for (var i = 0; i < 96; i++) {
-        final angle = i * 2 * math.pi / 96;
-        final deformation =
-            math.sin(angle * 3 + phase * 1.7 + offset) * mids * 0.065 +
-            math.sin(angle * 2 - phase * 1.1 + offset) * bass * 0.04 +
-            math.sin(angle * 7 + phase * 2.3 + offset) * treble * 0.018;
-        final r = radius * (1 + layer * 0.055 + deformation);
+      for (var i = 0; i < count; i++) {
+        final angle = i * math.pi * 2 / count;
+        final local = _band((1 - math.cos(angle)) / 2);
+        final deformation = reducedMotion
+            ? 0.0
+            : math.sin(angle * 3 + phase * 1.6 + layer) *
+                      spectrum.mids *
+                      0.065 +
+                  math.sin(angle * (liquid ? 5 : 7) - phase * 2.1) *
+                      local *
+                      (liquid ? 0.055 : 0.022) +
+                  math.sin(angle * 2 - phase) * spectrum.bass * 0.04;
+        final r = radius * (1 + layer * (liquid ? 0.045 : 0.055) + deformation);
         points.add(center + Offset(math.cos(angle), math.sin(angle)) * r);
       }
       final path = _closedCurve(points);
-      final bounds = Rect.fromCircle(center: center, radius: radius * 1.25);
       if (layer == 0) {
         canvas.drawPath(
           path,
           Paint()
-            ..shader = RadialGradient(
-              center: const Alignment(-0.45, -0.5),
-              radius: 1.1,
-              colors: [
-                Color.lerp(color, Colors.white, 0.35)!,
-                color,
-                secondaryColor,
-                Color.lerp(secondaryColor, Colors.black, 0.65)!,
-              ],
-              stops: const [0, 0.28, 0.70, 1],
-            ).createShader(bounds),
-        );
-        canvas.drawPath(
-          path,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.2
-            ..shader = LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withValues(alpha: 0.75),
-                color.withValues(alpha: 0.06),
-              ],
-            ).createShader(bounds),
+            ..shader =
+                RadialGradient(
+                  center: const Alignment(-0.45, -0.5),
+                  colors: [
+                    Color.lerp(_color(energy, 0), Colors.white, 0.32)!,
+                    _color(energy, 0.4),
+                    _color(energy, 1),
+                  ],
+                ).createShader(
+                  Rect.fromCircle(center: center, radius: radius * 1.35),
+                ),
         );
       } else {
         canvas.drawPath(
           path,
           Paint()
-            ..style = PaintingStyle.fill
-            ..color = Color.lerp(
-              color,
-              secondaryColor,
-              layer / 2,
-            )!.withValues(alpha: 0.10),
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = liquid ? 1.4 : 1
+            ..color = _color(
+              energy,
+              layer / (layers - 1),
+            ).withValues(alpha: liquid ? 0.28 : 0.18),
         );
+      }
+    }
+  }
+
+  void _wave(Canvas canvas, Size size) {
+    final center = size.height / 2;
+    final layers = style.symmetric ? 4 : 3;
+    for (var layer = layers - 1; layer >= 0; layer--) {
+      final path = Path();
+      for (var i = 0; i <= 120; i++) {
+        final position = i / 120;
+        final taper = math.pow(math.sin(position * math.pi), 1.5).toDouble();
+        final energy = _band(_sourcePosition(position));
+        final carrier = reducedMotion
+            ? 0.0
+            : math.sin(position * math.pi * (4 + layer) - phase * 2 + layer) *
+                  energy;
+        var y = center - (energy * 0.24 + carrier * 0.12) * taper * size.height;
+        if (style.direction == VoiceVisualizerDirection.down) {
+          y = size.height - y;
+        }
+        i == 0 ? path.moveTo(0, y) : path.lineTo(position * size.width, y);
+      }
+      final color = _color(activity, layer / math.max(1, layers - 1));
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4 + (layers - layer) * 0.7
+          ..strokeCap = StrokeCap.round
+          ..color = color.withValues(alpha: layer == 0 ? 0.9 : 0.24),
+      );
+      if (style.symmetric || style.direction == VoiceVisualizerDirection.both) {
+        canvas.save();
+        canvas.translate(0, size.height);
+        canvas.scale(1, -1);
         canvas.drawPath(
           path,
           Paint()
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.1
-            ..color = Color.lerp(
-              color,
-              secondaryColor,
-              layer / 2,
-            )!.withValues(alpha: 0.25),
+            ..strokeWidth = 1.2
+            ..color = color.withValues(alpha: 0.22),
         );
+        canvas.restore();
       }
     }
+  }
+
+  ({double width, double gap, double left}) _barLayout(Size size, int count) {
+    final content = size.width * 0.88;
+    final gap = math.min(style.spacing, content / count * 0.8);
+    final width = math.max(1.0, (content - gap * (count - 1)) / count);
+    return (width: width, gap: gap, left: (size.width - content) / 2);
+  }
+
+  void _bars(Canvas canvas, Size size) {
+    final count = _count();
+    final layout = _barLayout(size, count);
+    final upward =
+        style.kind == VoiceVisualizerKind.upwardBars ||
+        style.direction == VoiceVisualizerDirection.up;
+    final downward = style.direction == VoiceVisualizerDirection.down;
+    final baseline = upward
+        ? size.height * 0.84
+        : downward
+        ? size.height * 0.16
+        : size.height / 2;
+    for (var i = 0; i < count; i++) {
+      final position = i / math.max(1, count - 1);
+      final energy = _band(_sourcePosition(position));
+      final height =
+          layout.width +
+          energy * (size.height * (upward ? 0.66 : 0.58) - layout.width);
+      final x = layout.left + i * (layout.width + layout.gap);
+      final rect = upward
+          ? Rect.fromLTWH(x, baseline - height, layout.width, height)
+          : downward
+          ? Rect.fromLTWH(x, baseline, layout.width, height)
+          : Rect.fromCenter(
+              center: Offset(x + layout.width / 2, baseline),
+              width: layout.width,
+              height: height,
+            );
+      final radius = Radius.circular(
+        math.min(style.cornerRadius, layout.width / 2),
+      );
+      if (style.glow > 0 && energy > 0.08) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(rect, radius),
+          _glow(position, energy, 6),
+        );
+      }
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, radius),
+        Paint()..color = _color(energy, position),
+      );
+    }
+  }
+
+  void _voiceBars(Canvas canvas, Size size) {
+    final count = _count();
+    final layout = _barLayout(size, count);
+    for (var i = 0; i < count; i++) {
+      final position = i / math.max(1, count - 1);
+      final silhouette = 0.55 + 0.45 * math.sin(position * math.pi);
+      final energy =
+          (_band(_sourcePosition(position)) * 0.82 +
+                  spectrum.voiceActivity * 0.18)
+              .clamp(0.0, 1.0);
+      final height = layout.width + energy * size.height * 0.52 * silhouette;
+      final rect = Rect.fromCenter(
+        center: Offset(
+          layout.left + layout.width / 2 + i * (layout.width + layout.gap),
+          size.height / 2,
+        ),
+        width: layout.width,
+        height: height,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          rect,
+          Radius.circular(math.min(style.cornerRadius, layout.width / 2)),
+        ),
+        Paint()..color = _color(energy, position),
+      );
+    }
+  }
+
+  void _halo(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final unit = size.shortestSide;
+    final radius = unit * (0.25 + spectrum.bass * 0.02);
+    if (style.glow > 0) {
+      canvas.drawCircle(center, radius, _glow(0.5, activity, unit * 0.08));
+    }
+    final paint = Paint()..strokeCap = StrokeCap.round;
+    final count = _count(maximum: 192);
+    for (var i = 0; i < count; i++) {
+      final position = i / count;
+      final angle = position * math.pi * 2 - math.pi / 2;
+      final energy = _band((1 - math.cos(angle)) / 2);
+      final direction = Offset(math.cos(angle), math.sin(angle));
+      paint
+        ..strokeWidth = math.max(1.0, unit * 0.007)
+        ..color = _color(energy, position);
+      canvas.drawLine(
+        center + direction * radius,
+        center + direction * (radius + unit * (0.01 + energy * 0.1)),
+        paint,
+      );
+    }
+  }
+
+  void _mirrorSpectrum(Canvas canvas, Size size) {
+    final count = _count();
+    final layout = _barLayout(size, count);
+    for (var i = 0; i < count; i++) {
+      final position = i / math.max(1, count - 1);
+      final source = style.symmetric ? (position - 0.5).abs() * 2 : position;
+      final energy = _band(source);
+      final height = layout.width + energy * size.height * 0.7;
+      final rect = Rect.fromCenter(
+        center: Offset(
+          layout.left + layout.width / 2 + i * (layout.width + layout.gap),
+          size.height / 2,
+        ),
+        width: layout.width,
+        height: height,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          rect,
+          Radius.circular(math.min(style.cornerRadius, layout.width / 2)),
+        ),
+        Paint()..color = _color(energy, position),
+      );
+    }
+  }
+
+  void _ribbon(Canvas canvas, Size size) {
+    for (var layer = 4; layer >= 0; layer--) {
+      final path = Path();
+      final count = (80 * style.density).round();
+      for (var i = 0; i <= count; i++) {
+        final position = i / count;
+        final energy = _band(_sourcePosition(position));
+        final wave = reducedMotion
+            ? 0.0
+            : math.sin(
+                position * math.pi * (2.2 + layer * 0.32) -
+                    phase * (1.2 + layer * 0.08),
+              );
+        final y =
+            size.height / 2 +
+            wave * (8 + energy * size.height * 0.22) +
+            (layer - 2) * 3;
+        i == 0 ? path.moveTo(0, y) : path.lineTo(position * size.width, y);
+      }
+      final strokeWidth = 1.2 + (4 - layer) * 0.8;
+      final color = _color(activity, layer / 4);
+      if (style.glow > 0) {
+        canvas.drawPath(
+          path,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = strokeWidth + 1.5
+            ..strokeCap = StrokeCap.round
+            ..color = color.withValues(
+              alpha: style.glow * (0.06 + (4 - layer) * 0.025),
+            )
+            ..maskFilter = MaskFilter.blur(
+              BlurStyle.normal,
+              3 + style.glow * 7,
+            ),
+        );
+      }
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth
+          ..strokeCap = StrokeCap.round
+          ..color = color.withValues(alpha: 0.22 + (4 - layer) * 0.14),
+      );
+    }
+  }
+
+  void _pulseRings(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final maxRadius = size.shortestSide * 0.43;
+    final energy = math.max(activity, breath);
+    final count = _count(maximum: 9);
+    for (var i = count - 1; i >= 0; i--) {
+      final progress = reducedMotion
+          ? i / count
+          : (phase * 0.22 + i / count) % 1;
+      canvas.drawCircle(
+        center,
+        maxRadius * (0.22 + progress * 0.78),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2 + energy * 3
+          ..color = _color(energy, progress).withValues(
+            alpha: ((1 - progress) * (0.18 + energy * 0.65)).clamp(0.0, 1.0),
+          ),
+      );
+    }
+    canvas.drawCircle(
+      center,
+      maxRadius * (0.16 + spectrum.bass * 0.04),
+      Paint()..color = _color(energy, 0.35),
+    );
+  }
+
+  void _dotSpectrum(Canvas canvas, Size size) {
+    final count = _count();
+    final width = size.width * 0.88;
+    final step = width / math.max(1, count - 1);
+    final left = (size.width - width) / 2;
+    for (var i = 0; i < count; i++) {
+      final position = i / math.max(1, count - 1);
+      final energy = _band(_sourcePosition(position));
+      final baseline = style.direction == VoiceVisualizerDirection.both
+          ? size.height / 2
+          : style.direction == VoiceVisualizerDirection.down
+          ? size.height * 0.18
+          : size.height * 0.82;
+      final y = style.direction == VoiceVisualizerDirection.down
+          ? baseline + energy * size.height * 0.64
+          : baseline - energy * size.height * 0.64;
+      final point = Offset(left + i * step, y);
+      final color = _color(energy, position);
+      canvas.drawLine(
+        Offset(point.dx, baseline),
+        point,
+        Paint()
+          ..strokeWidth = 1
+          ..color = color.withValues(alpha: 0.1 + energy * 0.22),
+      );
+      if (style.glow > 0) {
+        canvas.drawCircle(point, 3 + energy * 2, _glow(position, energy, 5));
+      }
+      canvas.drawCircle(point, 2 + energy * 2.2, Paint()..color = color);
+    }
+  }
+
+  void _capsuleBars(Canvas canvas, Size size) {
+    final count = _count();
+    final layout = _barLayout(size, count);
+    final trackHeight = size.height * 0.68;
+    final top = (size.height - trackHeight) / 2;
+    for (var i = 0; i < count; i++) {
+      final position = i / math.max(1, count - 1);
+      final energy = _band(_sourcePosition(position));
+      final x = layout.left + i * (layout.width + layout.gap);
+      final radius = Radius.circular(
+        math.min(style.cornerRadius, layout.width / 2),
+      );
+      final active = _color(energy, position);
+      final track = style.inactiveColor ?? active;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, top, layout.width, trackHeight),
+          radius,
+        ),
+        Paint()
+          ..color = track.withValues(
+            alpha: style.inactiveColor == null ? 0.18 : 0.42,
+          ),
+      );
+      final fillHeight = math.max(layout.width, trackHeight * energy);
+      final fillTop = switch (style.direction) {
+        VoiceVisualizerDirection.down => top,
+        VoiceVisualizerDirection.both => top + (trackHeight - fillHeight) / 2,
+        _ => top + trackHeight - fillHeight,
+      };
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, fillTop, layout.width, fillHeight),
+          radius,
+        ),
+        Paint()..color = active,
+      );
+    }
+  }
+
+  void _voiceBloom(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final unit = size.shortestSide;
+    final radius = unit * 0.16;
+    if (style.glow > 0) {
+      canvas.drawCircle(
+        center,
+        radius * 1.4,
+        _glow(0.5, activity, unit * 0.09),
+      );
+    }
+    final count = _count(maximum: 128);
+    for (var i = 0; i < count; i++) {
+      final position = i / count;
+      final angle = position * math.pi * 2 - math.pi / 2;
+      final energy =
+          (_band((1 - math.cos(angle)) / 2) * 0.75 +
+                  spectrum.voiceActivity * 0.25)
+              .clamp(0.0, 1.0);
+      final direction = Offset(math.cos(angle), math.sin(angle));
+      final petal = center + direction * (radius + energy * unit * 0.09);
+      canvas.save();
+      canvas.translate(petal.dx, petal.dy);
+      canvas.rotate(angle + math.pi / 2);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset.zero,
+          width: unit * (0.025 + energy * 0.035),
+          height: unit * (0.07 + energy * 0.1),
+        ),
+        Paint()
+          ..color = _color(
+            energy,
+            position,
+          ).withValues(alpha: 0.5 + energy * 0.5),
+      );
+      canvas.restore();
+    }
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [_color(activity, 0), _color(activity, 1)],
+        ).createShader(Rect.fromCircle(center: center, radius: radius)),
+    );
+  }
+
+  void _minimalLine(Canvas canvas, Size size) {
+    final path = Path();
+    final count = (100 * style.density).round();
+    for (var i = 0; i <= count; i++) {
+      final position = i / count;
+      final taper = math.sin(position * math.pi);
+      final carrier = reducedMotion
+          ? 0.0
+          : math.sin(position * math.pi * 5 - phase * 2.2);
+      var y =
+          size.height / 2 -
+          carrier *
+              _band(_sourcePosition(position)) *
+              size.height *
+              0.3 *
+              taper;
+      if (style.direction == VoiceVisualizerDirection.down) y = size.height - y;
+      i == 0 ? path.moveTo(0, y) : path.lineTo(position * size.width, y);
+    }
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round
+      ..shader = LinearGradient(
+        colors: List<Color>.generate(
+          math.max(2, palette.length),
+          (index) => _color(
+            activity,
+            index / math.max(1, math.max(2, palette.length) - 1),
+          ),
+        ),
+      ).createShader(Offset.zero & size);
+    if (style.glow > 0) {
+      canvas.drawPath(
+        path,
+        Paint.from(paint)
+          ..shader = null
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, style.glow * 7)
+          ..color = _color(activity, 0.5).withValues(alpha: 0.35),
+      );
+    }
+    canvas.drawPath(path, paint);
   }
 
   Path _closedCurve(List<Offset> points) {
@@ -162,188 +628,10 @@ class ReactiveWaveformPainter extends CustomPainter {
     return path..close();
   }
 
-  void _wave(Canvas canvas, Size size) {
-    final frame = animation.value;
-    final spectrum = frame.spectrum;
-    final phase = reducedMotion ? 0.0 : frame.phase;
-    final centerY = size.height / 2;
-    final color = _energyColor(_activity, 0);
-    final secondaryColor = _energyColor(_activity, 1);
-    for (var layer = 3; layer >= 0; layer--) {
-      final top = <Offset>[];
-      final bottom = <Offset>[];
-      for (var i = 0; i <= 120; i++) {
-        final x = i / 120;
-        final taper = math.pow(math.sin(x * math.pi), 1.5).toDouble();
-        final envelope = spectrum.level * 0.10 + spectrum.bass * 0.09;
-        final carrier =
-            math.sin(x * math.pi * 4 - phase * 2 + layer * 0.7) *
-                spectrum.mids *
-                0.075 +
-            math.sin(x * math.pi * 10 + phase * 1.4 + layer) *
-                spectrum.treble *
-                0.025;
-        final displacement =
-            (envelope + carrier) * taper * size.height * (1 - layer * 0.12);
-        final thickness = 1.0 + taper * spectrum.level * size.height * 0.035;
-        top.add(Offset(x * size.width, centerY - displacement - thickness));
-        bottom.add(Offset(x * size.width, centerY + displacement + thickness));
-      }
-      final path = Path()..moveTo(top.first.dx, top.first.dy);
-      for (final point in top.skip(1)) {
-        path.lineTo(point.dx, point.dy);
-      }
-      for (final point in bottom.reversed) {
-        path.lineTo(point.dx, point.dy);
-      }
-      path.close();
-      canvas.drawPath(
-        path,
-        Paint()
-          ..shader = LinearGradient(
-            colors: [
-              color.withValues(alpha: layer == 0 ? 0.7 : 0.13),
-              secondaryColor.withValues(alpha: layer == 0 ? 0.8 : 0.18),
-            ],
-          ).createShader(Offset.zero & size),
-      );
-    }
-  }
-
-  double get _activity {
-    final spectrum = animation.value.spectrum;
-    return math.max(
-      spectrum.level,
-      math.max(spectrum.bass, math.max(spectrum.mids, spectrum.treble)),
-    );
-  }
-
-  Color _energyColor(double energy, double position) {
-    final activeColor = Color.lerp(
-      color,
-      secondaryColor,
-      position.clamp(0.0, 1.0),
-    )!;
-    if (inactiveColor == null) return activeColor;
-    // Fade only when a resting color was explicitly supplied.
-    final activity = Curves.easeOut.transform((energy / 0.25).clamp(0.0, 1.0));
-    return Color.lerp(inactiveColor, activeColor, activity)!;
-  }
-
-  double _band(int index) {
-    final bands = animation.value.spectrum.bands;
-    if (bands.isEmpty) return 0;
-    index = index.clamp(0, bands.length - 1);
-    final previous = bands[math.max(0, index - 1)];
-    final next = bands[math.min(bands.length - 1, index + 1)];
-    return (bands[index] * 0.7 + (previous + next) * 0.15).clamp(0.0, 1.0);
-  }
-
-  void _bars(Canvas canvas, Size size, {bool upward = false}) {
-    final bands = animation.value.spectrum.bands;
-    if (bands.isEmpty) return;
-    final width = size.width * 0.86;
-    final left = (size.width - width) / 2;
-    final step = width / bands.length;
-    final stroke = math.min(size.height * 0.12, math.min(step * 0.52, 10.0));
-    final paint = Paint();
-    final baseline = size.height * 0.82;
-    for (var i = 0; i < bands.length; i++) {
-      final amplitude = _band(i);
-      final height = stroke + amplitude * (size.height * 0.64 - stroke);
-      final x = left + (i + 0.5) * step;
-      final bottom = upward ? baseline : (size.height + height) / 2;
-      paint.color = _energyColor(amplitude, i / math.max(1, bands.length - 1));
-      // Fixed bottom edge: upward bars never extend below their baseline.
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x - stroke / 2, bottom - height, stroke, height),
-          Radius.circular(stroke / 2),
-        ),
-        paint,
-      );
-    }
-  }
-
-  void _voiceBars(Canvas canvas, Size size) {
-    const count = 5;
-    const silhouette = [0.55, 0.8, 1.0, 0.8, 0.55];
-    final spectrum = animation.value.spectrum;
-    final stroke = math.min(size.shortestSide * 0.075, 22.0);
-    final step = stroke * 1.65;
-    final left = size.width / 2 - step * (count - 1) / 2;
-    final paint = Paint();
-    for (var i = 0; i < count; i++) {
-      final start = i * spectrum.bands.length ~/ count;
-      final end = (i + 1) * spectrum.bands.length ~/ count;
-      var peak = 0.0;
-      for (var j = start; j < end; j++) {
-        peak = math.max(peak, _band(j));
-      }
-      final energy = (peak * 0.85 + spectrum.level * 0.15).clamp(0.0, 1.0);
-      final height = stroke + energy * size.height * 0.52 * silhouette[i];
-      paint.color = _energyColor(energy, i / (count - 1));
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: Offset(left + i * step, size.height / 2),
-            width: stroke,
-            height: height,
-          ),
-          Radius.circular(stroke / 2),
-        ),
-        paint,
-      );
-    }
-  }
-
-  void _halo(Canvas canvas, Size size) {
-    const count = 64;
-    final spectrum = animation.value.spectrum;
-    final unit = size.shortestSide;
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = unit * (0.26 + (reducedMotion ? 0 : spectrum.bass * 0.025));
-    final glowRadius = unit * 0.43;
-    canvas.drawCircle(
-      center,
-      glowRadius,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            color.withValues(alpha: _activity * 0.12),
-            secondaryColor.withValues(alpha: _activity * 0.04),
-            secondaryColor.withValues(alpha: 0),
-          ],
-        ).createShader(Rect.fromCircle(center: center, radius: glowRadius)),
-    );
-    final paint = Paint()
-      ..strokeWidth = math.min(3.0, unit * 0.008)
-      ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < count; i++) {
-      final angle = i * 2 * math.pi / count - math.pi / 2;
-      // Mirror the spectrum around the ring to avoid a bass/treble seam.
-      final position = (1 - math.cos(i * 2 * math.pi / count)) / 2;
-      final bandPosition = position * math.max(0, spectrum.bands.length - 1);
-      final low = bandPosition.floor();
-      final energy =
-          _band(low) + (_band(low + 1) - _band(low)) * (bandPosition - low);
-      final length = unit * (0.008 + energy * 0.095);
-      final direction = Offset(math.cos(angle), math.sin(angle));
-      paint.color = _energyColor(energy, position);
-      canvas.drawLine(
-        center + direction * radius,
-        center + direction * (radius + length),
-        paint,
-      );
-    }
-  }
-
   @override
   bool shouldRepaint(covariant ReactiveWaveformPainter oldDelegate) =>
       oldDelegate.animation != animation ||
       oldDelegate.style != style ||
-      oldDelegate.color != color ||
-      oldDelegate.secondaryColor != secondaryColor ||
-      oldDelegate.inactiveColor != inactiveColor ||
-      oldDelegate.reducedMotion != reducedMotion;
+      oldDelegate.reducedMotion != reducedMotion ||
+      oldDelegate.idleBreathing != idleBreathing;
 }

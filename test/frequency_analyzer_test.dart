@@ -1,7 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:waveforms_audio/waveforms_audio.dart';
+import 'package:waveforms_audio/src/audio/audio_motion.dart';
+import 'package:waveforms_audio/src/audio/frequency_analyzer.dart';
 
 List<double> tone(
   double frequency, {
@@ -79,7 +80,10 @@ void main() {
       treble: 1,
       level: 1,
     );
-    final envelope = SpectrumEnvelope();
+    final envelope = SpectrumEnvelope(
+      attack: const Duration(milliseconds: 45),
+      release: const Duration(milliseconds: 320),
+    );
     final attack = envelope.advance(target, const Duration(milliseconds: 45));
     expect(attack.level, inInclusiveRange(0.62, 0.64));
     final release = envelope.advance(
@@ -87,8 +91,14 @@ void main() {
       const Duration(milliseconds: 45),
     );
     expect(release.level, greaterThan(attack.level * 0.85));
-    final slow = SpectrumEnvelope();
-    final fast = SpectrumEnvelope();
+    final slow = SpectrumEnvelope(
+      attack: const Duration(milliseconds: 45),
+      release: const Duration(milliseconds: 320),
+    );
+    final fast = SpectrumEnvelope(
+      attack: const Duration(milliseconds: 45),
+      release: const Duration(milliseconds: 320),
+    );
     for (var i = 0; i < 30; i++) {
       slow.advance(target, const Duration(milliseconds: 16));
     }
@@ -109,6 +119,42 @@ void main() {
     expect(
       () => FrequencyAnalyzer(sampleRate: 48000, bandCount: 0),
       throwsArgumentError,
+    );
+  });
+
+  test('voice motion favors bass impact, holds peaks, and reports speech', () {
+    final motion = AudioMotionSettings.preset(AudioMotionPreset.voice);
+    final envelope = SpectrumEnvelope(motion: motion);
+    final target = AudioSpectrum(
+      bands: List.filled(32, 1),
+      bass: 1,
+      mids: 1,
+      treble: 1,
+      level: 1,
+      peak: 1,
+    );
+    final response = envelope.advance(target, const Duration(milliseconds: 30));
+    expect(response.bass, greaterThan(response.mids));
+    expect(response.mids, greaterThan(response.treble));
+    envelope.advance(
+      AudioSpectrum.silence(32),
+      const Duration(milliseconds: 80),
+    );
+    expect(envelope.value.peak, 1);
+    envelope.advance(
+      AudioSpectrum.silence(32),
+      const Duration(milliseconds: 80),
+    );
+    expect(envelope.value.peak, lessThan(1));
+
+    final analyzer = FrequencyAnalyzer(
+      sampleRate: 48000,
+      adaptiveGain: true,
+      noiseGate: 0.001,
+    );
+    expect(
+      analyzer.addSamples(tone(700, amplitude: 0.03)).voiceActivity,
+      greaterThan(0),
     );
   });
 }

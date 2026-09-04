@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:waveforms_audio/waveforms_audio.dart';
+import 'package:waveforms_audio/src/painters/reactive_waveform_painter.dart';
 
 void main() {
   test('PCM16 decoding preserves signed samples and split byte boundaries', () {
@@ -30,6 +31,8 @@ void main() {
                 audioStream: stream.stream,
                 sampleRate: 48000,
                 speaker: speaker,
+                speakerTransition: const Duration(milliseconds: 240),
+                renderer: VoiceVisualizerRenderer.canvas,
               ),
             ),
           );
@@ -38,21 +41,30 @@ void main() {
               as ReactiveWaveformPainter;
       await tester.pumpWidget(host(VoiceChatSpeaker.local));
       final animation = painter().animation;
-      expect(painter().color, VoiceChatSpeaker.local.color);
-      expect(painter().secondaryColor, VoiceChatSpeaker.local.secondaryColor);
+      expect(painter().style.colors.first, VoiceChatSpeaker.local.colors.first);
+      expect(painter().style.colors.last, VoiceChatSpeaker.local.colors.last);
       await tester.pumpWidget(host(VoiceChatSpeaker.remote));
       await tester.pump(const Duration(milliseconds: 120));
-      expect(painter().color, isNot(VoiceChatSpeaker.local.color));
-      expect(painter().color, isNot(VoiceChatSpeaker.remote.color));
+      expect(
+        painter().style.colors.first,
+        isNot(VoiceChatSpeaker.local.colors.first),
+      );
+      expect(
+        painter().style.colors.first,
+        isNot(VoiceChatSpeaker.remote.colors.first),
+      );
       expect(identical(painter().animation, animation), isTrue);
       await tester.pump(const Duration(milliseconds: 120));
-      expect(painter().color, VoiceChatSpeaker.remote.color);
-      expect(painter().secondaryColor, VoiceChatSpeaker.remote.secondaryColor);
+      expect(
+        painter().style.colors.first,
+        VoiceChatSpeaker.remote.colors.first,
+      );
+      expect(painter().style.colors.last, VoiceChatSpeaker.remote.colors.last);
       await tester.pumpWidget(
         host(VoiceChatSpeaker.local, reducedMotion: true),
       );
       await tester.pump();
-      expect(painter().color, VoiceChatSpeaker.local.color);
+      expect(painter().style.colors.first, VoiceChatSpeaker.local.colors.first);
       await tester.pumpWidget(const SizedBox());
       expect(stream.hasListener, isFalse);
       unawaited(stream.close());

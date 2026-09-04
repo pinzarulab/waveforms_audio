@@ -9,6 +9,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:waveforms_audio/waveforms_audio.dart';
+import 'package:waveforms_audio/src/audio/frequency_analyzer.dart';
+import 'package:waveforms_audio/src/painters/reactive_waveform_painter.dart';
 
 void main() {
   testWidgets('render active and resting style gallery', (tester) async {
@@ -51,14 +53,6 @@ void main() {
       [Color(0xFF9B7BFF), Color(0xFFF28DCE)],
       [Color(0xFFFF453A), Color(0xFFFFAA33)],
     ];
-    const labels = [
-      'Orb',
-      'Wave',
-      'Spectrum',
-      'Upward bars',
-      'Voice bars',
-      'Halo',
-    ];
     const key = ValueKey('gallery');
     await tester.pumpWidget(
       RepaintBoundary(
@@ -74,7 +68,7 @@ void main() {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Six ways to feel sound.',
+                    'Fourteen ways to feel sound.',
                     style: TextStyle(fontSize: 32, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 8),
@@ -92,7 +86,7 @@ void main() {
                       children: [
                         for (
                           var i = 0;
-                          i < ReactiveVisualizerStyle.values.length;
+                          i < VoiceVisualizerKind.values.length;
                           i++
                         )
                           Container(
@@ -108,7 +102,7 @@ void main() {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  '${(i + 1).toString().padLeft(2, '0')}  ${labels[i]}',
+                                  '${(i + 1).toString().padLeft(2, '0')}  ${VoiceVisualizerKind.values[i].name}',
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w500,
@@ -119,10 +113,15 @@ void main() {
                                     child: CustomPaint(
                                       painter: ReactiveWaveformPainter(
                                         animation: active,
-                                        style:
-                                            ReactiveVisualizerStyle.values[i],
-                                        color: palettes[i][0],
-                                        secondaryColor: palettes[i][1],
+                                        style: VoiceVisualizerStyle(
+                                          kind: VoiceVisualizerKind.values[i],
+                                          colors: palettes[i % palettes.length],
+                                          barCount:
+                                              VoiceVisualizerKind.values[i] ==
+                                                  VoiceVisualizerKind.voiceBars
+                                              ? 5
+                                              : 32,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -146,10 +145,20 @@ void main() {
                                           child: CustomPaint(
                                             painter: ReactiveWaveformPainter(
                                               animation: idle,
-                                              style: ReactiveVisualizerStyle
-                                                  .values[i],
-                                              color: palettes[i][0],
-                                              secondaryColor: palettes[i][1],
+                                              style: VoiceVisualizerStyle(
+                                                kind: VoiceVisualizerKind
+                                                    .values[i],
+                                                colors:
+                                                    palettes[i %
+                                                        palettes.length],
+                                                barCount:
+                                                    VoiceVisualizerKind
+                                                            .values[i] ==
+                                                        VoiceVisualizerKind
+                                                            .voiceBars
+                                                    ? 5
+                                                    : 32,
+                                              ),
                                             ),
                                           ),
                                         ),

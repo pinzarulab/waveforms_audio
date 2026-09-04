@@ -7,10 +7,14 @@ void main() {
       final List<double> rawData = [
         0.1, -0.5, 0.2, // Bucket 1 max abs = 0.5
         0.8, -0.9, 0.4, // Bucket 2 max abs = 0.9
-        0.1, 0.1, 0.1,  // Bucket 3 max abs = 0.1
+        0.1, 0.1, 0.1, // Bucket 3 max abs = 0.1
       ];
 
-      final audioData = AudioProcessor.extractPeaks(rawData, 3, normalize: false);
+      final audioData = AudioProcessor.extractPeaks(
+        rawData,
+        3,
+        normalize: false,
+      );
 
       expect(audioData.samples.length, 3);
       expect(audioData.samples[0], 0.5);
@@ -23,10 +27,14 @@ void main() {
       final List<double> rawData = [
         0.1, -0.5, 0.2, // Bucket 1 max abs = 0.5
         0.8, -0.9, 0.4, // Bucket 2 max abs = 0.9
-        0.1, 0.1, 0.1,  // Bucket 3 max abs = 0.1
+        0.1, 0.1, 0.1, // Bucket 3 max abs = 0.1
       ];
 
-      final audioData = AudioProcessor.extractPeaks(rawData, 3, normalize: true);
+      final audioData = AudioProcessor.extractPeaks(
+        rawData,
+        3,
+        normalize: true,
+      );
 
       expect(audioData.samples.length, 3);
       // Normalized: each divided by 0.9

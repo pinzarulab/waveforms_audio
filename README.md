@@ -1,177 +1,234 @@
 # Waveforms Audio
 
-Flutter audio visualizers: frequency-reactive orbs, layered waves, centered and
-upward spectrum bars, voice bars, halos, and classic linear/circular/oval waveforms. No runtime dependencies beyond Flutter.
+Frequency-reactive Flutter visualizers for voice chat, assistants, music, and
+classic waveform views. Runtime code depends only on Flutter.
 
-## Natural, frequency-driven motion
+## Voice chat from API bytes
 
-`ReactiveAudioVisualizer` analyzes real PCM samples with a rolling Hann-windowed FFT.
-Bass (60–250 Hz) expands the orb, mids (250 Hz–2 kHz) deform its surface, and treble
-(2 kHz up to 16 kHz, limited by the source sample rate) adds smaller ripples.
-The spectrum view displays logarithmic frequency bands from low to high.
-
-A fast attack and slower release make sounds feel responsive without snapping.
-Quiet signals stay quiet; silence returns the visualization to rest. Rendering
-updates through a painter listenable rather than rebuilding the widget every frame.
+Describe the uncompressed PCM once. The controller decodes arbitrary byte chunk
+boundaries, normalizes samples, and exposes the stream used by the visualizer.
 
 ```dart
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:waveforms_audio/waveforms_audio.dart';
 
-ReactiveAudioVisualizer(
-  audioStream: monoPcmStream, // Stream<List<double>>, normalized signed PCM (-1–1)
-  sampleRate: 48000,         // Must match your audio source
-  style: ReactiveVisualizerStyle.upwardBars,
-  // Optional: omit to keep the active palette during silence.
-  // inactiveColor: Colors.grey,
-  attack: const Duration(milliseconds: 45),
-  release: const Duration(milliseconds: 320),
-  size: const Size(double.infinity, 300),
-)
+final audio = ReactiveAudioController(
+  format: const AudioFormat(
+    encoding: AudioEncoding.pcm16,
+    sampleRate: 48000,
+    channels: 1,
+    endian: Endian.little,
+  ),
+);
+
+// Uint8List or List<int> from a WebSocket, HTTP stream, SDK, or audio callback.
+apiAudioBytes.listen(audio.addBytes);
+
+VoiceChatVisualizer(
+  controller: audio,
+  speaker: VoiceChatSpeaker.remote,
+  style: const VoiceVisualizerStyle.bars(
+    colors: [Colors.red, Colors.orange],
+    inactiveColor: null,
+    barCount: 24,
+    spacing: 3,
+    cornerRadius: 8,
+    glow: 0.25,
+  ),
+);
 ```
 
-### Styles and resting colors
+Call `audio.dispose()` when the owning screen or call ends.
 
-| Style | Motion |
-| --- | --- |
-| `orb` | Smooth, layered sphere shaped by bass, voice, and high frequencies. |
-| `wave` | Flowing ribbons with tapered edges. |
-| `bars` | Rounded frequency bars that grow above and below the center. |
-| `upwardBars` | Rounded frequency bars that rise from a fixed bottom baseline. |
-| `voiceBars` | Five rounded voice bars that settle into small pills. |
-| `halo` | A segmented ring with mirrored frequency response. |
+`AudioFormat` supports:
 
-All six styles keep their active palette during silence by default, on both
-`ReactiveAudioVisualizer` and `VoiceChatVisualizer`. `inactiveColor` is optional
-and defaults to null. Set it explicitly (for example, `Colors.grey`) to fade to a
-separate resting color as sound subsides. Each spectrum bar or halo segment then
-follows its own frequency energy. Set it back to null to restore the active
-palette at rest. Use equal primary and secondary colors for a solid color.
+- Signed PCM16 and PCM24.
+- Float32 PCM.
+- Little- and big-endian bytes.
+- Interleaved mono or multichannel audio.
+- Automatic multichannel averaging, or one channel selected with `channel`.
 
-Connect decoded mono PCM from your recorder or player. This package does not record,
-play, or decode audio. Encoded file bytes, per-chunk peaks, and precomputed frequency
-magnitudes are not PCM. Downmix multichannel audio before passing it in.
+`ReactiveAudioController.addBase64` accepts plain base64 and base64 data URLs.
+`addSamples` accepts already-normalized mono samples and clamps them to -1–1.
 
-- `fftSize`: power of two from 256 to 8192; default 2048. Larger windows resolve
-  lower frequencies more precisely but respond more slowly.
-- `bandCount`: 3–128; default 32.
-- `sampleRate`: at least 8000 Hz; use the source's actual rate, not the UI refresh rate.
-- `color` / `secondaryColor`: active gradient colors.
-- `inactiveColor`: optional resting color; defaults to null (keep the active palette).
-- A gap longer than 220 ms (or 1.5 times the last chunk's duration, whichever is
-  greater) starts the release to silence. Small, regular chunks work best.
-- System reduced motion disables the continuous animation and the orb's deformation;
-  functional frequency levels still update. Tickers stop after settling and follow
-  Flutter's `TickerMode` when hidden.
+MP3, AAC, Opus, and container formats are compressed. Decode them in the host
+application or playback SDK, then feed their PCM output to this package. Send
+remote or AI PCM when it is played, rather than when the whole response first
+arrives.
 
-Frequency extraction follows the usual FFT-based visualization approach described
-in [MDN's audio visualization guide](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Visualizations_with_Web_Audio_API).
-The Dart implementation runs locally and does not depend on Web Audio.
+## Local and remote speakers
 
-## Voice chat: local and remote speakers
-
-Use `VoiceChatVisualizer` when the color identifies who is speaking:
-
-- `VoiceChatSpeaker.local`: blue → cyan.
-- `VoiceChatSpeaker.remote`: red → orange (another participant or an AI).
-
-Override either speaker's active gradient with `localColor`, `localSecondaryColor`,
-`remoteColor`, and `remoteSecondaryColor`. Omitted or null colors keep their
-individual preset defaults. Overrides apply to orb, wave, and spectrum styles
-and retain the smooth transition between speakers.
-
-The role transition takes 240 ms and respects reduced motion. Set the role from
-chat state, active-speaker events, or playback state. Frequency analysis animates
-the sound; it does not identify people or decide whether a voice is human or AI.
+The default local palette is blue–cyan. The default remote or AI palette is
+red–orange. Changing `speaker` animates between palettes.
 
 ```dart
 VoiceChatVisualizer(
-  // These are separate, live broadcast PCM streams owned by the chat app.
-  audioStream: isRemoteSpeaking ? remotePlaybackPcm : microphonePcm,
-  sampleRate: isRemoteSpeaking ? remoteSampleRate : microphoneSampleRate,
+  controller: activeAudio,
   speaker: isRemoteSpeaking
       ? VoiceChatSpeaker.remote
       : VoiceChatSpeaker.local,
-  style: ReactiveVisualizerStyle.orb, // wave and bars use the same role colors
-  // Optional custom speaker gradients:
-  localColor: Colors.purple,
-  localSecondaryColor: Colors.pinkAccent,
-  remoteColor: Colors.green,
-  remoteSecondaryColor: Colors.limeAccent,
-  // Optional resting-color override:
-  // inactiveColor: Colors.blueGrey,
-)
+  localColors: const [Color(0xFF2979FF), Color(0xFF39E9FF)],
+  remoteColors: const [Color(0xFFFF453A), Color(0xFFFFAA33)],
+  style: const VoiceVisualizerStyle.liquidOrb(),
+  onVoiceActivity: (probability) {
+    // Normalized 0–1 estimate derived from level and voice-band energy.
+  },
+);
 ```
 
-Create the streams once outside `build`. They must support repeated subscriptions
-when switching speakers and deliver current audio, without replaying old buffered
-chunks. Tap the decoded remote/AI audio **as it plays**, not an entire TTS response
-as soon as it arrives over the network. Supply each source's actual sample rate.
-Compressed network packets need decoding first; stereo needs downmixing to mono.
+The app selects the speaker from call state, active-speaker events, or playback
+state. Frequency analysis does not identify a person. For simultaneous speakers,
+render one visualizer per feed, or choose which feed controls a shared visualizer.
 
-For simultaneous speakers, render two `VoiceChatVisualizer` widgets, one per feed.
-For a single shared orb, your app chooses which speaker takes priority. Connect
-the microphone track and remote playback separately; microphone pickup of speaker
-sound is not a substitute for the remote stream.
+## Normalized PCM streams
 
-`Pcm16Decoder` converts raw signed little-endian mono PCM16 bytes to normalized
-samples and preserves sample pairs across split byte chunks:
+Applications that already produce mono samples can skip the controller:
 
 ```dart
-final decoder = Pcm16Decoder();
-final pcm = pcm16ByteStream.map(decoder.addBytes);
+ReactiveAudioVisualizer(
+  audioStream: monoPcmStream, // Stream<List<double>>, signed -1–1 samples
+  sampleRate: 48000,
+  style: const VoiceVisualizerStyle.ribbon(
+    colors: [Color(0xFF72F5D1), Color(0xFF6B8CFF)],
+  ),
+  motionPreset: AudioMotionPreset.voice,
+);
 ```
 
-The main package does not record or play audio; the example uses the
-[`record` plugin](https://pub.dev/packages/record) for microphone capture.
+The sample rate must match the audio source. It is unrelated to display refresh
+rate.
+
+## Natural motion
+
+The rolling FFT uses logarithmic frequency bands. Motion settings provide:
+
+- Fast bass attack, slower voice-band movement, and soft treble decay.
+- Adaptive gain for quiet and loud microphones.
+- Configurable RMS noise gate.
+- Peak hold with gradual falloff.
+- A 0–1 voice-activity estimate.
+- Configurable idle breathing. Set `idleBreathing: 0` for a motionless rest.
+
+Choose `AudioMotionPreset.voice`, `.music`, `.ambient`, or `.energetic`.
+Override any value when needed:
+
+```dart
+final motion = AudioMotionSettings.preset(
+  AudioMotionPreset.voice,
+).copyWith(
+  noiseGate: 0.01,
+  idleBreathing: 0,
+  peakHold: const Duration(milliseconds: 140),
+);
+
+ReactiveAudioVisualizer(
+  controller: audio,
+  motion: motion,
+  style: const VoiceVisualizerStyle.minimalLine(),
+);
+```
+
+System reduced-motion settings disable continuous deformation while preserving
+the current audio state.
+
+## GPU fragment shader
+
+The hybrid renderer sends fluid, radial, layered, and glow-heavy styles to one
+shared GPU fragment program. Audio decoding, FFT analysis, motion envelopes,
+uniform updates, and frame scheduling remain on the CPU. Simple geometric
+styles stay on Canvas, where shading every pixel would cost more than drawing
+the primitives directly.
+
+```dart
+// Optional: start this before opening the call screen.
+await precacheWaveformsAudioShaders();
+
+VoiceChatVisualizer(
+  controller: audio,
+  speaker: VoiceChatSpeaker.remote,
+  renderer: VoiceVisualizerRenderer.auto,
+  style: const VoiceVisualizerStyle.liquidOrb(
+    glow: 0.5,
+    density: 1.3,
+  ),
+);
+```
+
+Renderer modes:
+
+- `auto`, the default, uses a shader when the selected style supports it.
+- `canvas` always uses Flutter Canvas.
+- `fragmentShader` requests the shader backend and uses Canvas for styles
+  without a shader.
+
+Shader programs are cached. A visualizer reuses its `FragmentShader` between
+frames. While a program loads, or if the current platform cannot create it, the
+same style is drawn with its Canvas implementation.
+
+GPU styles are `orb`, `wave`, `halo`, `ribbon`, `liquidOrb`, `pulseRings`, and
+`voiceBloom`. Bars, upward bars, voice bars, mirror spectrum, dot spectrum,
+capsule bars, and minimal line retain the Canvas renderer. All GPU styles have
+matching Canvas fallbacks.
+
+## Styles
+
+| Style object | Appearance |
+| --- | --- |
+| `VoiceVisualizerStyle.orb` | Layered sphere shaped by bass, mids, and treble. |
+| `.liquidOrb` | GPU fluid membrane with Canvas fallback. |
+| `.wave` | Symmetric flowing waveform. |
+| `.ribbon` | Layered strands with independent movement. |
+| `.bars` | Centered rounded frequency bars. |
+| `.upwardBars` | Bars fixed to a lower baseline. |
+| `.voiceBars` | Compact voice-focused pills. |
+| `.mirrorSpectrum` | Spectrum mirrored around the center. |
+| `.capsuleBars` | Inactive tracks filled by live energy. |
+| `.dotSpectrum` | Frequency dots with vertical trails. |
+| `.halo` | Segmented radial spectrum. |
+| `.pulseRings` | Expanding rings driven by peaks. |
+| `.voiceBloom` | Radial petals driven by voice activity. |
+| `.minimalLine` | A clean waveform for compact controls. |
+
+Every style object accepts a solid or gradient `colors` list, optional
+`inactiveColor`, glow, density, symmetry, and direction. Bar-based styles also
+accept bar count, spacing, and corner radius.
+
+`inactiveColor` defaults to null. Silence therefore keeps the main palette.
+Set a resting color explicitly to blend each element from that color as its
+frequency becomes active.
 
 ## Classic waveforms
 
-`AudioVisualizer` draws preprocessed amplitude data. `LiveAudioVisualizer` displays
-a scrolling history of per-chunk peaks. These APIs remain available for waveform
-views rather than frequency analysis.
+`AudioData` takes an immutable snapshot of its samples. Changing the source
+list after construction cannot silently bypass repainting.
 
 ```dart
 AudioVisualizer(
   audioData: AudioProcessor.extractPeaks(samples, 100),
-  type: VisualizerType.circular,
+  type: VisualizerType.linear,
+  spacing: 4,
+  strokeWidth: 3,
   animatePulsate: true,
-  transitionDuration: const Duration(milliseconds: 100),
-)
+);
 ```
 
-## Try the demo
+`LiveAudioVisualizer` provides a scrolling amplitude history. Classic canvas
+painters are implementation details; the main library exports widgets, models,
+controllers, style objects, and audio adapters.
+
+## Demo and checks
 
 ```sh
 cd example
 flutter run
 ```
 
-1. Select **Microphone**, tap **Start microphone**, and grant access.
-2. Speak normally. Choose any of the six styles to visualize your voice.
-3. Select **You** for blue–cyan or **Other / AI** for red–orange. These buttons
-   preview roles with the same microphone; no remote participant or AI is connected.
-4. Expand **Colors** to try speaker, violet, or emerald active palettes and
-   optional gray, slate, or rose resting colors. **Keep active color** is the default.
-5. Tap **Stop microphone** to release capture. Capture also stops when the app
-   enters the background; resuming the app does not restart it automatically.
-
-Audio is processed locally in memory. The example does not save or upload it,
-play microphone audio back, or connect to an AI service.
-
-Select **Demo signal** for the existing Bass, Voice, and Air comparisons without
-microphone access. The synthetic voice profile is not recorded speech.
-
-Android microphone permission, iOS/macOS purpose strings, and macOS audio-input
-entitlements are configured in the example. On web, use localhost or HTTPS and
-allow browser microphone access. After adding this native plugin, fully rebuild
-the example; hot reload alone cannot register it. See the `record` plugin's
-platform setup for system requirements, including Linux audio tools.
-
-## Checks
+The example can use a real microphone or a synthetic bass, voice, or treble
+signal. Microphone audio stays in memory and is not uploaded or saved.
 
 ```sh
 flutter analyze
 flutter test
-cd example
-flutter test
+cd example && flutter test
 ```

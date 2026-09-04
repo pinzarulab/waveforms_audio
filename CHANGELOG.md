@@ -1,3 +1,20 @@
+## 0.1.0
+
+* Add a shared cross-backend fragment shader for orb, wave, halo, ribbon,
+  liquid-orb, pulse-ring, and voice-bloom effects. Includes cached loading,
+  automatic Canvas fallback, explicit renderer selection, and a public precache
+  API.
+* Add immutable audio snapshots and functional classic-bar spacing.
+* Add PCM16, PCM24, and Float32 input formats with endian, multichannel,
+  channel-selection, base64, and normalized-sample controller APIs.
+* Add voice, music, ambient, and energetic motion presets with frequency-specific
+  envelopes, adaptive gain, noise gate, peak hold, voice activity, and optional
+  idle breathing.
+* Add mirror spectrum, ribbon, liquid orb, pulse rings, dot spectrum, capsule
+  bars, voice bloom, and minimal-line styles.
+* Replace reactive constructor styling with immutable `VoiceVisualizerStyle`
+  objects and keep canvas painters out of the main public entrypoint.
+
 ## 0.0.1
 
 * Add `upwardBars`, `voiceBars`, and `halo` reactive styles.
