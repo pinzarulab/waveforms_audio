@@ -71,6 +71,7 @@ class VisualizerEffectsShaderInstance {
     for (var index = 0; index < 8; index++) {
       shader.setFloat(29 + index, _sampleBand(spectrum.bands, index / 7));
     }
+    shader.setFloat(37, style.barCount.toDouble());
   }
 
   double _sampleBand(List<double> bands, double position) {

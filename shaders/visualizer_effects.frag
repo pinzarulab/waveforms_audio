@@ -30,6 +30,7 @@ uniform float uBand4;
 uniform float uBand5;
 uniform float uBand6;
 uniform float uBand7;
+uniform float uBarCount;
 
 out vec4 fragColor;
 
@@ -38,6 +39,15 @@ const float TAU = 6.283185307179586;
 
 float saturate(float value) {
   return clamp(value, 0.0, 1.0);
+}
+
+float angleOf(vec2 point) {
+  if (dot(point, point) < 0.00000001) return 0.0;
+  return atan(point.y, point.x);
+}
+
+float radialBandPosition(float angle) {
+  return (1.0 - cos(angle)) * 0.5;
 }
 
 float bandAt(float position) {
@@ -76,12 +86,13 @@ vec4 finish(vec3 color, float alpha) {
 }
 
 float liquidMembrane(vec2 point, float radius, float layer, float motion) {
-  float angle = atan(point.y, point.x);
+  float angle = angleOf(point);
   float detail = max(0.55, uDensity);
+  float local = bandAt(radialBandPosition(angle));
   float deformation =
       sin(angle * 3.0 + uTime * 1.6 + layer) * uMids * 0.065 +
       sin(angle * (4.0 + detail) - uTime * 2.1 + layer * 0.7) *
-          (uTreble * 0.048 + uVoiceActivity * 0.018) +
+          (uTreble * 0.024 + local * 0.032 + uVoiceActivity * 0.018) +
       sin(angle * 2.0 - uTime + layer * 0.35) * uBass * 0.042;
   return length(point) - radius * (1.0 + layer * 0.046 + deformation * motion);
 }
@@ -102,12 +113,15 @@ vec4 liquidOrb(vec2 point, float unit, float activity, float breathing,
   float edge3 = lineMask(d3, aa, aa * 2.0);
   float glow = exp(-max(d3, 0.0) * 18.0) *
       uGlow * (0.10 + visible * 0.32);
-  float angle = atan(point.y, point.x);
-  float shift = 0.5 + 0.5 * sin(angle + uTime * 0.22 * motion);
+  // Avoid polar color gradients inside the fill: their undefined origin
+  // produces a visible spoke at the center of the orb.
+  float drift = sin(uTime * 0.22) * 0.04 * motion;
+  float shift = saturate(
+      0.5 - point.y * 1.65 + point.x * 0.25 + drift);
   vec3 color = palette(shift, activation);
-  vec2 normal = normalize(point + vec2(0.0001));
-  float highlight = pow(max(0.0, dot(normal, normalize(vec2(-0.55, -0.82)))), 4.0);
-  color = mix(color, vec3(1.0), highlight * fill * 0.30);
+  vec2 lightDelta = point - vec2(-0.075, -0.105);
+  float highlight = exp(-dot(lightDelta, lightDelta) * 34.0);
+  color = mix(color, vec3(1.0), highlight * fill * 0.18);
   float membranes = edge1 * 0.20 + edge2 * 0.15 + edge3 * 0.11;
   float alpha = fill * mix(uPrimaryColor.a, uSecondaryColor.a, shift) +
       edge0 * 0.42 + membranes + glow;
@@ -118,10 +132,10 @@ vec4 liquidOrb(vec2 point, float unit, float activity, float breathing,
 
 vec4 orb(vec2 point, float unit, float activity, float breathing,
          float activation, float motion) {
-  float angle = atan(point.y, point.x);
+  float angle = angleOf(point);
   float position = fract((angle + PI) / TAU);
-  float energy = bandAt(sourcePosition(position));
-  float radius = 0.195 + breathing * 0.025 +
+  float energy = bandAt(radialBandPosition(angle));
+  float radius = 0.23 + breathing * 0.025 +
       energy * 0.055 + uBass * 0.018 +
       sin(angle * (5.0 + uDensity * 2.0) - uTime * 1.8) *
           uTreble * 0.012 * motion;
@@ -130,26 +144,19 @@ vec4 orb(vec2 point, float unit, float activity, float breathing,
   float fill = 1.0 - smoothstep(-aa, aa, d);
   float edge = lineMask(d, aa * 1.2, aa * 2.0);
   float glow = glowMask(max(d, 0.0), 0.08 + activity * 0.32, 24.0);
-  vec3 color = palette(position, activation);
-  float highlight = pow(max(0.0, dot(normalize(point + vec2(0.0001)),
-      normalize(vec2(-0.5, -0.85)))), 5.0) * fill;
-  color = mix(color, vec3(1.0), highlight * 0.26);
+  float colorShift = saturate(
+      0.5 - point.y * 1.65 + point.x * 0.25 +
+      sin(uTime * 0.22) * 0.04 * motion);
+  vec3 color = palette(colorShift, activation);
+  vec2 lightDelta = point - vec2(-0.075, -0.105);
+  float highlight = exp(-dot(lightDelta, lightDelta) * 34.0) * fill;
+  color = mix(color, vec3(1.0), highlight * 0.18);
   float alpha = fill * 0.90 + edge * 0.32 + glow;
   return finish(color, alpha);
 }
 
-float waveY(float x, float layer, float motion) {
-  float energy = bandAt(sourcePosition(x));
-  float carrier = sin(x * PI * (3.4 + layer * 0.52) -
-      uTime * (1.6 + layer * 0.13));
-  float amplitude = (0.018 + energy * (0.10 + layer * 0.012)) * motion;
-  float direction = uDirection < 0.5 ? -1.0 :
-      (uDirection < 1.5 ? 1.0 : carrier);
-  return direction * amplitude * (uDirection < 1.5 ? abs(carrier) : 1.0);
-}
-
 vec4 waves(vec2 uv, float activity, float activation, float motion,
-           bool ribbonMode) {
+           float breathing, bool ribbonMode) {
   float aa = max(1.0 / max(uSize.y, 1.0), 0.0012);
   float y = uv.y - 0.5;
   float sharp = 0.0;
@@ -158,15 +165,48 @@ vec4 waves(vec2 uv, float activity, float activation, float motion,
   float weight = 0.0;
   for (int i = 0; i < 5; i++) {
     float layer = float(i);
-    float offset = ribbonMode ? (layer - 2.0) * 0.012 : (layer - 2.0) * 0.006;
-    float field = waveY(uv.x, layer, motion) + offset;
+    float rawEnergy = bandAt(sourcePosition(uv.x));
+    float idle = breathing *
+        (0.78 + 0.22 * sin(uv.x * PI * 5.0 + uTime));
+    float energy = max(rawEnergy, idle);
+    float field;
+    float mirrorField;
+    float prominence;
+    if (ribbonMode) {
+      float carrier = sin(uv.x * PI * (2.2 + layer * 0.32) -
+          uTime * (1.2 + layer * 0.08)) * motion;
+      field = carrier * (8.0 / max(uSize.y, 1.0) + energy * 0.22) +
+          (layer - 2.0) * 3.0 / max(uSize.y, 1.0);
+      mirrorField = field;
+      prominence = 0.22 + (4.0 - layer) * 0.14;
+    } else {
+      if (i >= 4) continue;
+      float taper = pow(max(0.0, sin(uv.x * PI)), 1.5);
+      float carrier = sin(uv.x * PI * (4.0 + layer) -
+          uTime * 2.0 + layer) * energy * motion;
+      float displacement =
+          (energy * 0.24 + carrier * 0.12) * taper;
+      field = uDirection > 0.5 && uDirection < 1.5
+          ? displacement
+          : -displacement;
+      mirrorField = -field;
+      prominence = i == 0 ? 0.9 : 0.24;
+    }
     float distance = y - field;
-    float prominence = ribbonMode ? (1.0 - layer * 0.11) :
-        (i < 3 ? 1.0 - layer * 0.18 : 0.0);
-    float width = aa * (ribbonMode ? 1.15 + (4.0 - layer) * 0.32 : 1.5);
+    float width = aa * (ribbonMode
+        ? 1.15 + (4.0 - layer) * 0.32
+        : 1.35 + (4.0 - layer) * 0.18);
     float line = lineMask(distance, width, aa * 1.5) * prominence;
-    float haze = glowMask(distance, (0.035 + activity * 0.09) * prominence,
-        ribbonMode ? 52.0 : 38.0);
+    bool mirrored = !ribbonMode &&
+        (uSymmetric > 0.5 || uDirection > 1.5);
+    if (mirrored) {
+      line += lineMask(y - mirrorField, aa * 1.2, aa * 1.5) * 0.22;
+    }
+    float haze = glowMask(distance, (0.025 + activity * 0.07) * prominence,
+        ribbonMode ? 58.0 : 46.0);
+    if (mirrored) {
+      haze += glowMask(y - mirrorField, 0.015 + activity * 0.025, 46.0);
+    }
     vec3 color = palette(layer / 4.0, activation);
     rgb += color * (line + haze);
     sharp += line;
@@ -179,16 +219,24 @@ vec4 waves(vec2 uv, float activity, float activation, float motion,
 
 vec4 halo(vec2 point, float unit, float activity, float breathing,
           float activation, float motion) {
-  float angle = atan(point.y, point.x);
+  float angle = angleOf(point);
   float position = fract((angle + PI) / TAU);
-  float energy = bandAt(sourcePosition(position));
-  float radius = 0.205 + breathing * 0.02 + energy * 0.038 +
-      sin(angle * 4.0 - uTime * 1.5) * uMids * 0.008 * motion;
-  float d = length(point) - radius;
+  float energy = max(bandAt(radialBandPosition(angle)), breathing);
+  float radius = length(point);
+  float inner = 0.25 + uBass * 0.02;
+  float outer = inner + 0.01 + energy * 0.10;
   float aa = max(1.25 / unit, 0.0012);
-  float ring = lineMask(d, aa * (1.8 + activity * 2.0), aa * 2.0);
-  float glow = glowMask(d, 0.06 + activity * 0.28, 27.0);
-  return finish(palette(position, activation), ring * 0.92 + glow);
+  float count = clamp(uBarCount * uDensity, 12.0, 192.0);
+  float segment = fract((position + 0.25) * count);
+  float angular = smoothstep(0.08, 0.18, segment) *
+      (1.0 - smoothstep(0.82, 0.92, segment));
+  float radial = smoothstep(inner - aa, inner + aa, radius) *
+      (1.0 - smoothstep(outer - aa, outer + aa, radius));
+  float ray = angular * radial;
+  float edgeDistance = max(inner - radius, radius - outer);
+  float glow = angular * glowMask(max(edgeDistance, 0.0),
+      0.025 + activity * 0.10, 52.0);
+  return finish(palette(position, activation), ray * 0.94 + glow);
 }
 
 vec4 pulseRings(vec2 point, float unit, float activity, float activation,
@@ -221,24 +269,31 @@ vec4 pulseRings(vec2 point, float unit, float activity, float activation,
 
 vec4 bloom(vec2 point, float activity, float activation, float motion) {
   float radius = length(point);
-  float angle = atan(point.y, point.x);
+  float angle = angleOf(point);
   float position = fract((angle + PI) / TAU);
-  float energy = bandAt(sourcePosition(position));
-  float petals = pow(abs(cos(angle * (8.0 + floor(uDensity * 4.0)))), 5.0);
-  float petalRadius = 0.145 + petals *
-      (0.045 + energy * 0.105 + uVoiceActivity * 0.025) *
-      (0.88 + 0.12 * sin(uTime * 1.7 + angle * 2.0) * motion);
+  float energy = saturate(
+      bandAt(radialBandPosition(angle)) * 0.75 +
+      uVoiceActivity * 0.25);
+  float count = clamp(uBarCount * uDensity, 6.0, 64.0);
+  float sector = TAU / count;
+  float localAngle = mod(angle + PI + sector * 0.5, sector) - sector * 0.5;
+  float petalCenter = 0.16 + energy * 0.09;
+  float radialSize = 0.035 + energy * 0.05;
+  float tangentSize = 0.0125 + energy * 0.0175;
+  float radialDistance = (radius - petalCenter) / radialSize;
+  float tangentDistance =
+      (sin(localAngle) * max(radius, 0.001)) / tangentSize;
+  float ellipse = length(vec2(radialDistance, tangentDistance));
   float aa = max(1.25 / min(uSize.x, uSize.y), 0.0012);
-  float shape = 1.0 - smoothstep(petalRadius - aa, petalRadius + aa, radius);
-  float core = 1.0 - smoothstep(0.115, 0.12 + aa, radius);
-  float edge = lineMask(radius - petalRadius, aa * 1.2, aa * 2.0);
-  float glow = glowMask(max(radius - petalRadius, 0.0),
-      0.08 + activity * 0.28, 26.0);
+  float petal = 1.0 - smoothstep(0.90, 1.0 + aa * 18.0, ellipse);
+  float core = 1.0 - smoothstep(0.16 - aa, 0.16 + aa, radius);
+  float coreGlow = glowMask(max(radius - 0.16, 0.0),
+      0.05 + activity * 0.18, 30.0);
   vec3 color = palette(position, activation);
-  vec3 coreColor = mix(palette(0.0, activation), palette(1.0, activation),
-      smoothstep(0.0, 0.12, radius));
+  float coreShift = saturate(0.5 - point.y * 2.0 + point.x * 0.3);
+  vec3 coreColor = palette(coreShift, activation);
   color = mix(color, coreColor, core);
-  return finish(color, shape * 0.88 + core * 0.25 + edge * 0.28 + glow);
+  return finish(color, petal * (0.50 + energy * 0.50) + core + coreGlow);
 }
 
 void main() {
@@ -256,11 +311,11 @@ void main() {
   if (uStyleMode < 0.5) {
     fragColor = orb(point, unit, activity, breathing, activation, motion);
   } else if (uStyleMode < 1.5) {
-    fragColor = waves(uv, activity, activation, motion, false);
+    fragColor = waves(uv, activity, activation, motion, breathing, false);
   } else if (uStyleMode < 2.5) {
     fragColor = halo(point, unit, activity, breathing, activation, motion);
   } else if (uStyleMode < 3.5) {
-    fragColor = waves(uv, activity, activation, motion, true);
+    fragColor = waves(uv, activity, activation, motion, breathing, true);
   } else if (uStyleMode < 4.5) {
     fragColor = liquidOrb(point, unit, activity, breathing, activation, motion);
   } else if (uStyleMode < 5.5) {
