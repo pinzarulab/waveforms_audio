@@ -154,7 +154,7 @@ vec4 liquidOrb(vec2 point, float unit, float activity, float breathing,
   float alpha = fill * gradientColor(shift).a +
       edge0 * 0.42 + membranes + glow;
   vec3 rgb = color * (fill + edge0 * 0.30) +
-      uPrimaryColor.rgb * glow + uSecondaryColor.rgb * membranes;
+      palette(0.0, activation) * glow + palette(1.0, activation) * membranes;
   return finish(rgb / max(alpha, 0.0001), alpha);
 }
 

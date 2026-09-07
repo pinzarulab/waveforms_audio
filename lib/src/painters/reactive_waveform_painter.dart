@@ -89,7 +89,7 @@ class ReactiveWaveformPainter extends CustomPainter {
   Color _color(double energy, double position) {
     final active = _activeColor(position);
     if (style.inactiveColor case final inactive?) {
-      final amount = Curves.easeOut.transform((energy / 0.24).clamp(0.0, 1.0));
+      final amount = Curves.easeOut.transform((activity / 0.24).clamp(0.0, 1.0));
       return Color.lerp(inactive, active, amount)!;
     }
     return active;
@@ -112,7 +112,7 @@ class ReactiveWaveformPainter extends CustomPainter {
 
   Paint _glow(double position, double energy, double blur) => Paint()
     ..color = _color(
-      energy,
+      activity,
       position,
     ).withValues(alpha: style.glow * (0.1 + energy * 0.28))
     ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
@@ -181,9 +181,9 @@ class ReactiveWaveformPainter extends CustomPainter {
                 RadialGradient(
                   center: const Alignment(-0.45, -0.5),
                   colors: [
-                    Color.lerp(_color(energy, 0), Colors.white, 0.32)!,
-                    _color(energy, 0.4),
-                    _color(energy, 1),
+                    Color.lerp(_color(activity, 0), Colors.white, 0.32)!,
+                    _color(activity, 0.4),
+                    _color(activity, 1),
                   ],
                 ).createShader(
                   Rect.fromCircle(center: center, radius: radius * 1.35),
@@ -196,7 +196,7 @@ class ReactiveWaveformPainter extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..strokeWidth = liquid ? 1.4 : 1
             ..color = _color(
-              energy,
+              activity,
               layer / (layers - 1),
             ).withValues(alpha: liquid ? 0.28 : 0.18),
         );

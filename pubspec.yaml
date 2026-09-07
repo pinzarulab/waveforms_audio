@@ -1,6 +1,6 @@
 name: waveforms_audio
 description: "Customizable Flutter audio visualizers with Canvas and fragment-shader rendering for voice, music, and chat interfaces."
-version: 0.2.1
+version: 0.2.2
 homepage: https://github.com/pinzarulab/waveforms_audio
 
 environment:

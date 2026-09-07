@@ -104,6 +104,78 @@ void main() {
     });
   });
 
+  testWidgets('liquid orb membranes and glow follow inactive color', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      final program = await VisualizerEffectsShaderProgram.load();
+      final shader = VisualizerEffectsShaderInstance(program);
+      addTearDown(shader.dispose);
+      Future<List<int>> render({
+        required List<Color> colors,
+        Color? inactiveColor,
+        double energy = 0,
+      }) async {
+        shader.update(
+          size: const Size(160, 160),
+          spectrum: AudioSpectrum(
+            bands: List.filled(8, energy),
+            bass: energy,
+            mids: energy,
+            treble: energy,
+            level: energy,
+            peak: energy,
+            voiceActivity: energy,
+          ),
+          phase: 0,
+          style: VoiceVisualizerStyle.liquidOrb(
+            colors: colors,
+            inactiveColor: inactiveColor,
+            glow: 0.5,
+          ),
+          idleBreathing: 0,
+          reducedMotion: true,
+        );
+        final recorder = ui.PictureRecorder();
+        Canvas(recorder).drawRect(
+          const Rect.fromLTWH(0, 0, 160, 160),
+          Paint()..shader = shader.shader,
+        );
+        final picture = recorder.endRecording();
+        final image = await picture.toImage(160, 160);
+        final bytes = await image.toByteData();
+        final result = bytes!.buffer.asUint8List().toList();
+        image.dispose();
+        picture.dispose();
+        return result;
+      }
+
+      const active = [Color(0xFFFF0000), Color(0xFF0000FF)];
+      const inactive = Color(0xFF00FF00);
+      final resting = await render(colors: active, inactiveColor: inactive);
+      final solidResting = await render(colors: [inactive]);
+      // The whole image includes the outer membranes and their surrounding glow.
+      expect(
+        resting,
+        solidResting,
+        reason: 'No active color may leak into the idle membranes or glow',
+      );
+      expect(resting.where((value) => value > 0), isNotEmpty);
+      final activeOnly = await render(colors: active);
+      expect(resting, isNot(activeOnly));
+      expect(
+        await render(colors: active, inactiveColor: inactive, energy: 0.5),
+        await render(colors: active, energy: 0.5),
+        reason: 'Full activation restores the original active palette',
+      );
+      expect(
+        await render(colors: active, inactiveColor: inactive, energy: 0.12),
+        isNot(await render(colors: active, energy: 0.12)),
+        reason: 'Partial activation still blends from the inactive color',
+      );
+    });
+  });
+
   testWidgets('palettes longer than four stops retain Canvas fallback', (
     tester,
   ) async {

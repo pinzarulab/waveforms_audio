@@ -1,3 +1,8 @@
+## 0.2.2
+
+* Fix GPU liquid-orb membranes and glow retaining active colors when an
+  inactive color is configured.
+
 ## 0.2.1
 
 * Expand README with setup, lifecycle examples, and a full public API reference.
