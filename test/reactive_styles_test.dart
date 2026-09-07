@@ -8,6 +8,12 @@ import 'package:waveforms_audio/src/audio/frequency_analyzer.dart';
 import 'package:waveforms_audio/src/painters/reactive_waveform_painter.dart';
 
 class _RecordingCanvas implements Canvas {
+  final circles = <({Offset center, double radius})>[];
+  @override
+  void drawCircle(Offset center, double radius, Paint paint) {
+    if (paint.maskFilter == null) circles.add((center: center, radius: radius));
+  }
+
   final paths = <Path>[];
   @override
   void drawPath(Path path, Paint paint) => paths.add(Path.from(path));
@@ -33,6 +39,36 @@ void main() {
   const active = Color(0xFF22DD66);
   const secondary = Color(0xFF66FFCC);
   const size = Size(320, 240);
+
+  test('every named style accepts scale and copyWith preserves it', () {
+    const styles = [
+      VoiceVisualizerStyle.orb(scale: 0.75),
+      VoiceVisualizerStyle.wave(scale: 0.75),
+      VoiceVisualizerStyle.bars(scale: 0.75),
+      VoiceVisualizerStyle.upwardBars(scale: 0.75),
+      VoiceVisualizerStyle.voiceBars(scale: 0.75),
+      VoiceVisualizerStyle.halo(scale: 0.75),
+      VoiceVisualizerStyle.mirrorSpectrum(scale: 0.75),
+      VoiceVisualizerStyle.ribbon(scale: 0.75),
+      VoiceVisualizerStyle.liquidOrb(scale: 0.75),
+      VoiceVisualizerStyle.pulseRings(scale: 0.75),
+      VoiceVisualizerStyle.dotSpectrum(scale: 0.75),
+      VoiceVisualizerStyle.capsuleBars(scale: 0.75),
+      VoiceVisualizerStyle.voiceBloom(scale: 0.75),
+      VoiceVisualizerStyle.minimalLine(scale: 0.75),
+    ];
+    expect(styles.every((style) => style.scale == 0.75), isTrue);
+    expect(styles.first.copyWith(scale: 1.4).scale, 1.4);
+    expect(styles.first.copyWith(), styles.first);
+    expect(
+      () => VoiceVisualizerStyle(scale: 0),
+      throwsAssertionError,
+    );
+    expect(
+      () => VoiceVisualizerStyle(scale: 4.1),
+      throwsAssertionError,
+    );
+  });
 
   _RecordingCanvas draw(
     VoiceVisualizerKind kind,
@@ -115,6 +151,33 @@ void main() {
       loud.bars[2].shape.height,
       greaterThan(loud.bars.first.shape.height),
     );
+  });
+
+  test('dot spectrum both mode is centered and fits its bounds', () {
+    for (final size in [const Size(320, 200), const Size(12, 12)]) {
+      for (final energy in [0.0, 0.5, 1.0]) {
+        final frame = ValueNotifier(ReactiveFrame(
+            AudioSpectrum(bands: List.filled(32, energy), level: energy), 0));
+        final canvas = _RecordingCanvas();
+        ReactiveWaveformPainter(
+          animation: frame,
+          style: const VoiceVisualizerStyle(
+              kind: VoiceVisualizerKind.dotSpectrum, glow: 0),
+        ).paint(canvas, size);
+        expect(canvas.circles.length, energy == 0 ? 32 : 64);
+        final averageY =
+            canvas.circles.fold(0.0, (sum, dot) => sum + dot.center.dy) /
+                canvas.circles.length;
+        expect(averageY, closeTo(size.height / 2, 1e-8));
+        for (final dot in canvas.circles) {
+          expect(dot.center.dy - dot.radius, greaterThanOrEqualTo(0));
+          expect(dot.center.dy + dot.radius, lessThanOrEqualTo(size.height));
+          expect(dot.center.dx - dot.radius, greaterThanOrEqualTo(0));
+          expect(dot.center.dx + dot.radius, lessThanOrEqualTo(size.width));
+        }
+        frame.dispose();
+      }
+    }
   });
 
   test('minimal line stays rounded with sharp bands and low density', () {

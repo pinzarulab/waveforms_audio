@@ -104,6 +104,12 @@ class VoiceVisualizerStyle {
   /// Element counts are capped by each painter; this does not change FFT band count.
   final double density;
 
+  /// Visual size multiplier inside the widget bounds; defaults to 1.
+  ///
+  /// Values below 1 add space around the style. Values above 1 enlarge it and
+  /// clip any portion outside the widget. This does not change layout size.
+  final double scale;
+
   /// Whether supported styles mirror frequency sampling toward the center.
   /// Generic default true; wave also draws reflected curves when enabled.
   final bool symmetric;
@@ -128,13 +134,15 @@ class VoiceVisualizerStyle {
     this.cornerRadius = 8,
     this.glow = 0.25,
     this.density = 1,
+    this.scale = 1,
     this.symmetric = true,
     this.direction = VoiceVisualizerDirection.both,
-  }) : assert(barCount >= 3 && barCount <= 128),
-       assert(spacing >= 0),
-       assert(cornerRadius >= 0),
-       assert(glow >= 0 && glow <= 1),
-       assert(density > 0 && density <= 3);
+  })  : assert(barCount >= 3 && barCount <= 128),
+        assert(spacing >= 0),
+        assert(cornerRadius >= 0),
+        assert(glow >= 0 && glow <= 1),
+        assert(density > 0 && density <= 3),
+        assert(scale > 0 && scale <= 4);
 
   /// Layered radial orb shaped by frequency energy.
   /// See the parameter defaults below; use [copyWith] for additional fields.
@@ -143,14 +151,16 @@ class VoiceVisualizerStyle {
     this.inactiveColor,
     this.glow = 0.3,
     this.density = 1,
+    this.scale = 1,
     this.symmetric = true,
-  }) : kind = VoiceVisualizerKind.orb,
-       barCount = 32,
-       spacing = 3,
-       cornerRadius = 8,
-       direction = VoiceVisualizerDirection.radial,
-       assert(glow >= 0 && glow <= 1),
-       assert(density > 0 && density <= 3);
+  })  : kind = VoiceVisualizerKind.orb,
+        barCount = 32,
+        spacing = 3,
+        cornerRadius = 8,
+        direction = VoiceVisualizerDirection.radial,
+        assert(glow >= 0 && glow <= 1),
+        assert(density > 0 && density <= 3),
+        assert(scale > 0 && scale <= 4);
 
   /// Smooth layered waveform with optional mirrored curves.
   /// See the parameter defaults below; use [copyWith] for additional fields.
@@ -159,14 +169,16 @@ class VoiceVisualizerStyle {
     this.inactiveColor,
     this.glow = 0.2,
     this.density = 1,
+    this.scale = 1,
     this.symmetric = true,
     this.direction = VoiceVisualizerDirection.both,
-  }) : kind = VoiceVisualizerKind.wave,
-       barCount = 32,
-       spacing = 3,
-       cornerRadius = 8,
-       assert(glow >= 0 && glow <= 1),
-       assert(density > 0 && density <= 3);
+  })  : kind = VoiceVisualizerKind.wave,
+        barCount = 32,
+        spacing = 3,
+        cornerRadius = 8,
+        assert(glow >= 0 && glow <= 1),
+        assert(density > 0 && density <= 3),
+        assert(scale > 0 && scale <= 4);
 
   /// Rounded frequency bars, centered by default.
   /// See the parameter defaults below; use [copyWith] for additional fields.
@@ -178,14 +190,16 @@ class VoiceVisualizerStyle {
     this.cornerRadius = 8,
     this.glow = 0.2,
     this.density = 1,
+    this.scale = 1,
     this.symmetric = false,
     this.direction = VoiceVisualizerDirection.both,
-  }) : kind = VoiceVisualizerKind.bars,
-       assert(barCount >= 3 && barCount <= 128),
-       assert(spacing >= 0),
-       assert(cornerRadius >= 0),
-       assert(glow >= 0 && glow <= 1),
-       assert(density > 0 && density <= 3);
+  })  : kind = VoiceVisualizerKind.bars,
+        assert(barCount >= 3 && barCount <= 128),
+        assert(spacing >= 0),
+        assert(cornerRadius >= 0),
+        assert(glow >= 0 && glow <= 1),
+        assert(density > 0 && density <= 3),
+        assert(scale > 0 && scale <= 4);
 
   /// Frequency bars rising from a lower baseline.
   /// See the parameter defaults below; use [copyWith] for additional fields.
@@ -197,14 +211,16 @@ class VoiceVisualizerStyle {
     this.cornerRadius = 8,
     this.glow = 0.2,
     this.density = 1,
+    this.scale = 1,
     this.symmetric = false,
     this.direction = VoiceVisualizerDirection.up,
-  }) : kind = VoiceVisualizerKind.upwardBars,
-       assert(barCount >= 3 && barCount <= 128),
-       assert(spacing >= 0),
-       assert(cornerRadius >= 0),
-       assert(glow >= 0 && glow <= 1),
-       assert(density > 0 && density <= 3);
+  })  : kind = VoiceVisualizerKind.upwardBars,
+        assert(barCount >= 3 && barCount <= 128),
+        assert(spacing >= 0),
+        assert(cornerRadius >= 0),
+        assert(glow >= 0 && glow <= 1),
+        assert(density > 0 && density <= 3),
+        assert(scale > 0 && scale <= 4);
 
   /// Compact rounded bars with voice-focused emphasis.
   /// See the parameter defaults below; use [copyWith] for additional fields.
@@ -216,14 +232,16 @@ class VoiceVisualizerStyle {
     this.cornerRadius = 12,
     this.glow = 0.25,
     this.density = 1,
+    this.scale = 1,
     this.symmetric = true,
     this.direction = VoiceVisualizerDirection.both,
-  }) : kind = VoiceVisualizerKind.voiceBars,
-       assert(barCount >= 3 && barCount <= 128),
-       assert(spacing >= 0),
-       assert(cornerRadius >= 0),
-       assert(glow >= 0 && glow <= 1),
-       assert(density > 0 && density <= 3);
+  })  : kind = VoiceVisualizerKind.voiceBars,
+        assert(barCount >= 3 && barCount <= 128),
+        assert(spacing >= 0),
+        assert(cornerRadius >= 0),
+        assert(glow >= 0 && glow <= 1),
+        assert(density > 0 && density <= 3),
+        assert(scale > 0 && scale <= 4);
 
   /// Rounded radial rays with a seamless spatial gradient.
   /// See the parameter defaults below; use [copyWith] for additional fields.
@@ -235,14 +253,16 @@ class VoiceVisualizerStyle {
     this.cornerRadius = 8,
     this.glow = 0.3,
     this.density = 1,
+    this.scale = 1,
     this.symmetric = true,
     this.direction = VoiceVisualizerDirection.radial,
-  }) : kind = VoiceVisualizerKind.halo,
-       assert(barCount >= 3 && barCount <= 128),
-       assert(spacing >= 0),
-       assert(cornerRadius >= 0),
-       assert(glow >= 0 && glow <= 1),
-       assert(density > 0 && density <= 3);
+  })  : kind = VoiceVisualizerKind.halo,
+        assert(barCount >= 3 && barCount <= 128),
+        assert(spacing >= 0),
+        assert(cornerRadius >= 0),
+        assert(glow >= 0 && glow <= 1),
+        assert(density > 0 && density <= 3),
+        assert(scale > 0 && scale <= 4);
 
   /// Upper spectrum bars above a separated, fading reflection.
   /// See the parameter defaults below; use [copyWith] for additional fields.
@@ -254,14 +274,16 @@ class VoiceVisualizerStyle {
     this.cornerRadius = 8,
     this.glow = 0.22,
     this.density = 1,
+    this.scale = 1,
     this.symmetric = true,
     this.direction = VoiceVisualizerDirection.both,
-  }) : kind = VoiceVisualizerKind.mirrorSpectrum,
-       assert(barCount >= 3 && barCount <= 128),
-       assert(spacing >= 0),
-       assert(cornerRadius >= 0),
-       assert(glow >= 0 && glow <= 1),
-       assert(density > 0 && density <= 3);
+  })  : kind = VoiceVisualizerKind.mirrorSpectrum,
+        assert(barCount >= 3 && barCount <= 128),
+        assert(spacing >= 0),
+        assert(cornerRadius >= 0),
+        assert(glow >= 0 && glow <= 1),
+        assert(density > 0 && density <= 3),
+        assert(scale > 0 && scale <= 4);
 
   /// Broad, smooth strands moving in layered waves.
   /// See the parameter defaults below; use [copyWith] for additional fields.
@@ -270,14 +292,16 @@ class VoiceVisualizerStyle {
     this.inactiveColor,
     this.glow = 0.28,
     this.density = 1,
+    this.scale = 1,
     this.symmetric = true,
     this.direction = VoiceVisualizerDirection.both,
-  }) : kind = VoiceVisualizerKind.ribbon,
-       barCount = 32,
-       spacing = 3,
-       cornerRadius = 8,
-       assert(glow >= 0 && glow <= 1),
-       assert(density > 0 && density <= 3);
+  })  : kind = VoiceVisualizerKind.ribbon,
+        barCount = 32,
+        spacing = 3,
+        cornerRadius = 8,
+        assert(glow >= 0 && glow <= 1),
+        assert(density > 0 && density <= 3),
+        assert(scale > 0 && scale <= 4);
 
   /// Fluid orb membranes with a Canvas fallback.
   /// See the parameter defaults below; use [copyWith] for additional fields.
@@ -286,14 +310,16 @@ class VoiceVisualizerStyle {
     this.inactiveColor,
     this.glow = 0.45,
     this.density = 1.2,
+    this.scale = 1,
     this.symmetric = true,
-  }) : kind = VoiceVisualizerKind.liquidOrb,
-       barCount = 48,
-       spacing = 2,
-       cornerRadius = 8,
-       direction = VoiceVisualizerDirection.radial,
-       assert(glow >= 0 && glow <= 1),
-       assert(density > 0 && density <= 3);
+  })  : kind = VoiceVisualizerKind.liquidOrb,
+        barCount = 48,
+        spacing = 2,
+        cornerRadius = 8,
+        direction = VoiceVisualizerDirection.radial,
+        assert(glow >= 0 && glow <= 1),
+        assert(density > 0 && density <= 3),
+        assert(scale > 0 && scale <= 4);
 
   /// Expanding rings with a central core.
   /// See the parameter defaults below; use [copyWith] for additional fields.
@@ -302,14 +328,16 @@ class VoiceVisualizerStyle {
     this.inactiveColor,
     this.glow = 0.35,
     this.density = 1,
+    this.scale = 1,
     this.symmetric = true,
-  }) : kind = VoiceVisualizerKind.pulseRings,
-       barCount = 5,
-       spacing = 4,
-       cornerRadius = 8,
-       direction = VoiceVisualizerDirection.radial,
-       assert(glow >= 0 && glow <= 1),
-       assert(density > 0 && density <= 3);
+  })  : kind = VoiceVisualizerKind.pulseRings,
+        barCount = 5,
+        spacing = 4,
+        cornerRadius = 8,
+        direction = VoiceVisualizerDirection.radial,
+        assert(glow >= 0 && glow <= 1),
+        assert(density > 0 && density <= 3),
+        assert(scale > 0 && scale <= 4);
 
   /// Frequency dots with faint trails to a baseline.
   /// See the parameter defaults below; use [copyWith] for additional fields.
@@ -320,14 +348,16 @@ class VoiceVisualizerStyle {
     this.spacing = 5,
     this.glow = 0.35,
     this.density = 1,
+    this.scale = 1,
     this.symmetric = false,
     this.direction = VoiceVisualizerDirection.up,
-  }) : kind = VoiceVisualizerKind.dotSpectrum,
-       cornerRadius = 8,
-       assert(barCount >= 3 && barCount <= 128),
-       assert(spacing >= 0),
-       assert(glow >= 0 && glow <= 1),
-       assert(density > 0 && density <= 3);
+  })  : kind = VoiceVisualizerKind.dotSpectrum,
+        cornerRadius = 8,
+        assert(barCount >= 3 && barCount <= 128),
+        assert(spacing >= 0),
+        assert(glow >= 0 && glow <= 1),
+        assert(density > 0 && density <= 3),
+        assert(scale > 0 && scale <= 4);
 
   /// Persistent tracks filled according to frequency energy.
   /// See the parameter defaults below; use [copyWith] for additional fields.
@@ -339,14 +369,16 @@ class VoiceVisualizerStyle {
     this.cornerRadius = 99,
     this.glow = 0.18,
     this.density = 1,
+    this.scale = 1,
     this.symmetric = false,
     this.direction = VoiceVisualizerDirection.up,
-  }) : kind = VoiceVisualizerKind.capsuleBars,
-       assert(barCount >= 3 && barCount <= 128),
-       assert(spacing >= 0),
-       assert(cornerRadius >= 0),
-       assert(glow >= 0 && glow <= 1),
-       assert(density > 0 && density <= 3);
+  })  : kind = VoiceVisualizerKind.capsuleBars,
+        assert(barCount >= 3 && barCount <= 128),
+        assert(spacing >= 0),
+        assert(cornerRadius >= 0),
+        assert(glow >= 0 && glow <= 1),
+        assert(density > 0 && density <= 3),
+        assert(scale > 0 && scale <= 4);
 
   /// Continuous rounded petals surrounding a gradient-filled bloom.
   /// See the parameter defaults below; use [copyWith] for additional fields.
@@ -357,14 +389,16 @@ class VoiceVisualizerStyle {
     this.spacing = 2,
     this.glow = 0.48,
     this.density = 1,
+    this.scale = 1,
     this.symmetric = true,
     this.direction = VoiceVisualizerDirection.radial,
-  }) : kind = VoiceVisualizerKind.voiceBloom,
-       cornerRadius = 12,
-       assert(barCount >= 3 && barCount <= 128),
-       assert(spacing >= 0),
-       assert(glow >= 0 && glow <= 1),
-       assert(density > 0 && density <= 3);
+  })  : kind = VoiceVisualizerKind.voiceBloom,
+        cornerRadius = 12,
+        assert(barCount >= 3 && barCount <= 128),
+        assert(spacing >= 0),
+        assert(glow >= 0 && glow <= 1),
+        assert(density > 0 && density <= 3),
+        assert(scale > 0 && scale <= 4);
 
   /// Compact waveform line for small controls.
   /// See the parameter defaults below; use [copyWith] for additional fields.
@@ -373,14 +407,16 @@ class VoiceVisualizerStyle {
     this.inactiveColor,
     this.glow = 0.12,
     this.density = 1,
+    this.scale = 1,
     this.symmetric = false,
     this.direction = VoiceVisualizerDirection.both,
-  }) : kind = VoiceVisualizerKind.minimalLine,
-       barCount = 32,
-       spacing = 3,
-       cornerRadius = 8,
-       assert(glow >= 0 && glow <= 1),
-       assert(density > 0 && density <= 3);
+  })  : kind = VoiceVisualizerKind.minimalLine,
+        barCount = 32,
+        spacing = 3,
+        cornerRadius = 8,
+        assert(glow >= 0 && glow <= 1),
+        assert(density > 0 && density <= 3),
+        assert(scale > 0 && scale <= 4);
 
   /// Copies the style with any supplied field replaced.
   ///
@@ -397,22 +433,24 @@ class VoiceVisualizerStyle {
     double? cornerRadius,
     double? glow,
     double? density,
+    double? scale,
     bool? symmetric,
     VoiceVisualizerDirection? direction,
-  }) => VoiceVisualizerStyle(
-    kind: kind ?? this.kind,
-    colors: colors ?? this.colors,
-    inactiveColor: clearInactiveColor
-        ? null
-        : inactiveColor ?? this.inactiveColor,
-    barCount: barCount ?? this.barCount,
-    spacing: spacing ?? this.spacing,
-    cornerRadius: cornerRadius ?? this.cornerRadius,
-    glow: glow ?? this.glow,
-    density: density ?? this.density,
-    symmetric: symmetric ?? this.symmetric,
-    direction: direction ?? this.direction,
-  );
+  }) =>
+      VoiceVisualizerStyle(
+        kind: kind ?? this.kind,
+        colors: colors ?? this.colors,
+        inactiveColor:
+            clearInactiveColor ? null : inactiveColor ?? this.inactiveColor,
+        barCount: barCount ?? this.barCount,
+        spacing: spacing ?? this.spacing,
+        cornerRadius: cornerRadius ?? this.cornerRadius,
+        glow: glow ?? this.glow,
+        density: density ?? this.density,
+        scale: scale ?? this.scale,
+        symmetric: symmetric ?? this.symmetric,
+        direction: direction ?? this.direction,
+      );
 
   @override
   bool operator ==(Object other) =>
@@ -426,20 +464,22 @@ class VoiceVisualizerStyle {
           cornerRadius == other.cornerRadius &&
           glow == other.glow &&
           density == other.density &&
+          scale == other.scale &&
           symmetric == other.symmetric &&
           direction == other.direction;
 
   @override
   int get hashCode => Object.hash(
-    kind,
-    Object.hashAll(colors),
-    inactiveColor,
-    barCount,
-    spacing,
-    cornerRadius,
-    glow,
-    density,
-    symmetric,
-    direction,
-  );
+        kind,
+        Object.hashAll(colors),
+        inactiveColor,
+        barCount,
+        spacing,
+        cornerRadius,
+        glow,
+        density,
+        scale,
+        symmetric,
+        direction,
+      );
 }

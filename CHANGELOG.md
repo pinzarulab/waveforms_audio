@@ -1,5 +1,8 @@
 ## Unreleased
 
+* Add `VoiceVisualizerStyle.scale` to resize every Canvas and GPU style around
+  its center without changing widget layout bounds.
+
 * Smooth orb and liquid-orb contours with gentler, continuous ripples. Center
   dot-spectrum pairs in `both` mode while retaining up/down layouts.
 

@@ -3,37 +3,51 @@
 
 precision highp float;
 
-uniform vec2 uSize;
-uniform float uTime;
-uniform float uBass;
-uniform float uMids;
-uniform float uTreble;
-uniform float uLevel;
-uniform float uPeak;
-uniform float uVoiceActivity;
-uniform float uIdleBreathing;
+uniform vec4 uCoreData;
+uniform vec4 uAudioData1;
+uniform vec4 uAudioData2;
+uniform vec4 uStyleFlags;
+uniform vec4 uStyleConfig;
+uniform vec4 uBands03;
+uniform vec4 uBands47;
 uniform vec4 uPrimaryColor;
 uniform vec4 uSecondaryColor;
 uniform vec4 uInactiveColor;
-uniform float uHasInactiveColor;
-uniform float uGlow;
-uniform float uDensity;
-uniform float uReducedMotion;
-uniform float uStyleMode;
-uniform float uSymmetric;
-uniform float uDirection;
-uniform float uBand0;
-uniform float uBand1;
-uniform float uBand2;
-uniform float uBand3;
-uniform float uBand4;
-uniform float uBand5;
-uniform float uBand6;
-uniform float uBand7;
-uniform float uBarCount;
 uniform vec4 uColor1;
 uniform vec4 uColor2;
-uniform float uColorCount;
+
+#define uSize uCoreData.xy
+#define uTime uCoreData.z
+#define uScale uCoreData.w
+
+#define uBass uAudioData1.x
+#define uMids uAudioData1.y
+#define uTreble uAudioData1.z
+#define uLevel uAudioData1.w
+
+#define uPeak uAudioData2.x
+#define uVoiceActivity uAudioData2.y
+#define uIdleBreathing uAudioData2.z
+#define uHasInactiveColor uAudioData2.w
+
+#define uGlow uStyleFlags.x
+#define uDensity uStyleFlags.y
+#define uReducedMotion uStyleFlags.z
+#define uStyleMode uStyleFlags.w
+
+#define uSymmetric uStyleConfig.x
+#define uDirection uStyleConfig.y
+#define uBarCount uStyleConfig.z
+#define uColorCount uStyleConfig.w
+
+#define uBand0 uBands03.x
+#define uBand1 uBands03.y
+#define uBand2 uBands03.z
+#define uBand3 uBands03.w
+#define uBand4 uBands47.x
+#define uBand5 uBands47.y
+#define uBand6 uBands47.z
+#define uBand7 uBands47.w
 
 out vec4 fragColor;
 
@@ -319,8 +333,9 @@ vec4 bloom(vec2 point, float activity, float activation, float motion) {
 void main() {
   vec2 coordinate = FlutterFragCoord().xy;
   float unit = max(1.0, min(uSize.x, uSize.y));
-  vec2 point = (coordinate - uSize * 0.5) / unit;
-  vec2 uv = coordinate / max(uSize, vec2(1.0));
+  vec2 centered = coordinate - uSize * 0.5;
+  vec2 point = centered / (unit * uScale);
+  vec2 uv = centered / (max(uSize, vec2(1.0)) * uScale) + 0.5;
   float activity = max(max(uLevel, uPeak),
       max(max(uBass, uMids), max(uTreble, uVoiceActivity)));
   float motion = 1.0 - step(0.5, uReducedMotion);
@@ -343,4 +358,10 @@ void main() {
   } else {
     fragColor = bloom(point, activity, activation, motion);
   }
+
+  // Match Canvas scaling: content outside the centered scaled bounds is clipped.
+  vec2 halfBounds = uSize * 0.5 * uScale;
+  float inside = step(abs(centered.x), halfBounds.x) *
+      step(abs(centered.y), halfBounds.y);
+  fragColor *= inside;
 }

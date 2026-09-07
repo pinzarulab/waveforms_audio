@@ -46,6 +46,9 @@ class ReactiveWaveformPainter extends CustomPainter {
     if (size.isEmpty) return;
     canvas.save();
     canvas.clipRect(Offset.zero & size);
+    canvas.translate(size.width / 2, size.height / 2);
+    canvas.scale(style.scale);
+    canvas.translate(-size.width / 2, -size.height / 2);
     _ambientGlow(canvas, size);
     switch (style.kind) {
       case VoiceVisualizerKind.orb:
@@ -542,7 +545,7 @@ class ReactiveWaveformPainter extends CustomPainter {
       final energy = _band(_sourcePosition(position));
       final displacement = energy * size.height * (centered ? 0.28 : 0.64);
       final color = _color(energy, position);
-      final radius = math.min(2 + energy * 2.2, size.shortestSide * 0.08);
+      final radius = math.min(2 + energy * 2.2, size.shortestSide * 0.04);
       void dot(double y) {
         final point = Offset(left + i * step, y);
         canvas.drawLine(

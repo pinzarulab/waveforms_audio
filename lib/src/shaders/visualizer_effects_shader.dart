@@ -52,34 +52,54 @@ class VisualizerEffectsShaderInstance {
     final inactive = style.inactiveColor ?? primary;
 
     shader
+      // uCoreData (0, 1, 2, 3)
       ..setFloat(0, size.width)
       ..setFloat(1, size.height)
       ..setFloat(2, phase)
-      ..setFloat(3, spectrum.bass)
-      ..setFloat(4, spectrum.mids)
-      ..setFloat(5, spectrum.treble)
-      ..setFloat(6, spectrum.level)
-      ..setFloat(7, spectrum.peak)
-      ..setFloat(8, spectrum.voiceActivity)
-      ..setFloat(9, idleBreathing);
-    _setColor(10, primary);
-    _setColor(14, secondary);
-    _setColor(18, inactive);
-    shader
-      ..setFloat(22, style.inactiveColor == null ? 0 : 1)
-      ..setFloat(23, style.glow)
-      ..setFloat(24, style.density)
-      ..setFloat(25, reducedMotion ? 1 : 0)
-      ..setFloat(26, _mode(style.kind))
-      ..setFloat(27, style.symmetric ? 1 : 0)
-      ..setFloat(28, _direction(style.direction));
-    for (var index = 0; index < 8; index++) {
-      shader.setFloat(29 + index, _sampleBand(spectrum.bands, index / 7));
-    }
-    shader.setFloat(37, style.barCount.toDouble());
-    _setColor(38, colors.length > 1 ? colors[1] : primary);
-    _setColor(42, colors.length > 2 ? colors[2] : secondary);
-    shader.setFloat(46, colors.length.toDouble());
+      ..setFloat(3, style.scale)
+      
+      // uAudioData1 (4, 5, 6, 7)
+      ..setFloat(4, spectrum.bass)
+      ..setFloat(5, spectrum.mids)
+      ..setFloat(6, spectrum.treble)
+      ..setFloat(7, spectrum.level)
+      
+      // uAudioData2 (8, 9, 10, 11)
+      ..setFloat(8, spectrum.peak)
+      ..setFloat(9, spectrum.voiceActivity)
+      ..setFloat(10, idleBreathing)
+      ..setFloat(11, style.inactiveColor == null ? 0.0 : 1.0)
+      
+      // uStyleFlags (12, 13, 14, 15)
+      ..setFloat(12, style.glow)
+      ..setFloat(13, style.density)
+      ..setFloat(14, reducedMotion ? 1.0 : 0.0)
+      ..setFloat(15, _mode(style.kind))
+      
+      // uStyleConfig (16, 17, 18, 19)
+      ..setFloat(16, style.symmetric ? 1.0 : 0.0)
+      ..setFloat(17, _direction(style.direction))
+      ..setFloat(18, style.barCount.toDouble())
+      ..setFloat(19, colors.length.toDouble())
+      
+      // uBands03 (20, 21, 22, 23)
+      ..setFloat(20, _sampleBand(spectrum.bands, 0.0))
+      ..setFloat(21, _sampleBand(spectrum.bands, 1 / 7))
+      ..setFloat(22, _sampleBand(spectrum.bands, 2 / 7))
+      ..setFloat(23, _sampleBand(spectrum.bands, 3 / 7))
+      
+      // uBands47 (24, 25, 26, 27)
+      ..setFloat(24, _sampleBand(spectrum.bands, 4 / 7))
+      ..setFloat(25, _sampleBand(spectrum.bands, 5 / 7))
+      ..setFloat(26, _sampleBand(spectrum.bands, 6 / 7))
+      ..setFloat(27, _sampleBand(spectrum.bands, 1.0));
+      
+    // Colors
+    _setColor(28, primary);
+    _setColor(32, secondary);
+    _setColor(36, inactive);
+    _setColor(40, colors.length > 1 ? colors[1] : primary);
+    _setColor(44, colors.length > 2 ? colors[2] : secondary);
   }
 
   double _sampleBand(List<double> bands, double position) {

@@ -320,6 +320,7 @@ settings. Each preview is a silent, four-second loop.
 | `cornerRadius` | `8` | Non-negative logical pixels; bar painters cap at half bar width |
 | `glow` | `0.25` | 0–1; zero disables optional glow |
 | `density` | `1` | Greater than 0, at most 3; scales detail/count with style-specific caps |
+| `scale` | `1` | Greater than 0, at most 4; resizes the style around its center without changing widget bounds |
 | `symmetric` | `true` | Mirror frequency sampling where supported; wave also adds reflected curves |
 | `direction` | `.both` | `VoiceVisualizerDirection.up`, `.down`, `.both`, or `.radial` |
 
@@ -327,14 +328,16 @@ Fields apply where the selected shape supports them. Bars, wave, dots, capsules,
 and minimal line interpret direction; radial shapes keep radial geometry. Ribbon
 and mirror spectrum retain their own layouts. Spacing/corner radius do not reshape
 fluid effects. Halo has 12–192 rays and bloom 6–12 lobes after density/capping;
-fixed wave/ribbon layers and some shader effects do not use `barCount`.
+fixed wave/ribbon layers and some shader effects do not use `barCount`. In `both`
+mode, dot spectrum draws matching dots above and below its center line. Explicit
+`up`/`down` directions retain their one-sided baselines.
 
 ### Named constructors and defaults
 
-Every named constructor accepts `colors`, `inactiveColor`, `glow`, `density`, and
-`symmetric`. The table shows **all remaining exposed parameters** and any changed
-common defaults. Values not listed use `density: 1`, `symmetric: true`, empty
-colors, and no inactive color. Constructor names also name the `VoiceVisualizerKind`
+Every named constructor accepts `colors`, `inactiveColor`, `glow`, `density`,
+`scale`, and `symmetric`. The table shows **all remaining exposed parameters** and any changed
+common defaults. Values not listed use `density: 1`, `scale: 1`, `symmetric: true`,
+empty colors, and no inactive color. Constructor names also name the `VoiceVisualizerKind`
 values.
 
 | Constructor | Appearance | Glow | Other exposed parameters / changed defaults |
@@ -355,7 +358,7 @@ values.
 | `.minimalLine()` | Compact waveform line | `0.12` | `symmetric: false`, `direction: .both` |
 
 `copyWith({kind, colors, inactiveColor, clearInactiveColor, barCount, spacing,
-cornerRadius, glow, density, symmetric, direction})` preserves omitted/null values.
+cornerRadius, glow, density, scale, symmetric, direction})` preserves omitted/null values.
 `clearInactiveColor: true` removes the resting color even if an `inactiveColor` is
 also supplied. Changing `kind` preserves existing configuration; it does not apply
 the new kind's named-constructor defaults.
@@ -364,8 +367,14 @@ the new kind's named-constructor defaults.
 final style = const VoiceVisualizerStyle.bars(
   colors: [Colors.blue, Colors.cyan, Colors.purple, Colors.pink],
   inactiveColor: Colors.grey,
+  scale: 0.8, // Shrink the bars inside the same widget bounds.
 ).copyWith(barCount: 40, spacing: 2, clearInactiveColor: true);
 ```
+
+`size` controls the widget's layout box. `style.scale` controls how large the
+visual appears inside that box. For example, a `280 × 280` widget with
+`scale: 0.7` keeps its layout size but draws the effect at 70%. Values above 1
+enlarge the effect and clip anything outside the widget bounds.
 
 ## Motion controls
 
