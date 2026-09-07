@@ -1,3 +1,7 @@
+## 0.2.4-1
+
+- Fix GIFs in pub.dev.
+
 ## 0.2.4
 
 - Update GIFs.

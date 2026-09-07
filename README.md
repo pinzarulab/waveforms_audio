@@ -289,7 +289,7 @@ lists as immutable. Equality compares all fields and color contents.
 in Chrome, Safari, or Firefox. From Android Studio, locate that file, reveal it
 in Finder/File Explorer, then open it with your browser. Keep `docs/images/`
 beside it. This works without a local server and avoids relying on the IDE's
-Markdown preview. You can also open any `.gif` in `docs/gifs/` directly
+Markdown preview. You can also open any `.gif` in `https://raw.githubusercontent.com/pinzarulab/waveforms_audio/master/docs/gifs/` directly
 in a browser.
 
 
@@ -300,13 +300,13 @@ settings. Each preview is a silent, four-second loop.
 
 |                                                                                                            | |
 |------------------------------------------------------------------------------------------------------------| --- |
-| **Orb** · `.orb()`<br>![Animated orb style](docs/gifs/orb.gif)                                             | **Liquid orb** · `.liquidOrb()`<br>![Animated liquid orb with membranes](docs/gifs/liquidOrb.gif) |
-| **Wave** · `.wave()`<br>![Animated smooth wave style](docs/gifs/wave.gif)                                  | **Ribbon** · `.ribbon()`<br>![Animated flowing ribbon style](docs/gifs/ribbon.gif) |
-| **Spectrum** · `.bars()`<br>![Animated spectrum bars](docs/gifs/spectrum.gif)                              | **Upward bars** · `.upwardBars()`<br>![Animated bars rising from a baseline](docs/gifs/upwardBars.gif) |
-| **Voice bars** · `.voiceBars()`<br>![Animated voice-focused pills](docs/gifs/voiceBars.gif)                | **Mirror spectrum** · `.mirrorSpectrum()`<br>![Animated spectrum with a fading reflection](docs/gifs/mirrorSpectrum.gif) |
-| **Halo** · `.halo()`<br>![Animated rounded halo rays](docs/gifs/halo.gif)                                  | **Voice bloom** · `.voiceBloom()`<br>![Animated soft bloom petals](docs/gifs/voiceBloom.gif) |
-| **Pulse rings** · `.pulseRings()`<br>![Animated pulse rings](docs/gifs/pulseRings.gif)                     | **Dot spectrum** · `.dotSpectrum()`<br>![Animated frequency dots and trails](docs/gifs/dotSpectrum.gif) |
-| **Capsule bars** · `.capsuleBars()`<br>![Animated energy-filled capsule tracks](docs/gifs/capsuleBars.gif) | **Minimal line** · `.minimalLine()`<br>![Animated compact waveform line](docs/gifs/minimalLine.gif) |
+| **Orb** · `.orb()`<br>![Animated orb style](https://raw.githubusercontent.com/pinzarulab/waveforms_audio/master/docs/gifs/orb.gif)                                             | **Liquid orb** · `.liquidOrb()`<br>![Animated liquid orb with membranes](https://raw.githubusercontent.com/pinzarulab/waveforms_audio/master/docs/gifs/liquidOrb.gif) |
+| **Wave** · `.wave()`<br>![Animated smooth wave style](https://raw.githubusercontent.com/pinzarulab/waveforms_audio/master/docs/gifs/wave.gif)                                  | **Ribbon** · `.ribbon()`<br>![Animated flowing ribbon style](https://raw.githubusercontent.com/pinzarulab/waveforms_audio/master/docs/gifs/ribbon.gif) |
+| **Spectrum** · `.bars()`<br>![Animated spectrum bars](https://raw.githubusercontent.com/pinzarulab/waveforms_audio/master/docs/gifs/spectrum.gif)                              | **Upward bars** · `.upwardBars()`<br>![Animated bars rising from a baseline](https://raw.githubusercontent.com/pinzarulab/waveforms_audio/master/docs/gifs/upwardBars.gif) |
+| **Voice bars** · `.voiceBars()`<br>![Animated voice-focused pills](https://raw.githubusercontent.com/pinzarulab/waveforms_audio/master/docs/gifs/voiceBars.gif)                | **Mirror spectrum** · `.mirrorSpectrum()`<br>![Animated spectrum with a fading reflection](https://raw.githubusercontent.com/pinzarulab/waveforms_audio/master/docs/gifs/mirrorSpectrum.gif) |
+| **Halo** · `.halo()`<br>![Animated rounded halo rays](https://raw.githubusercontent.com/pinzarulab/waveforms_audio/master/docs/gifs/halo.gif)                                  | **Voice bloom** · `.voiceBloom()`<br>![Animated soft bloom petals](https://raw.githubusercontent.com/pinzarulab/waveforms_audio/master/docs/gifs/voiceBloom.gif) |
+| **Pulse rings** · `.pulseRings()`<br>![Animated pulse rings](https://raw.githubusercontent.com/pinzarulab/waveforms_audio/master/docs/gifs/pulseRings.gif)                     | **Dot spectrum** · `.dotSpectrum()`<br>![Animated frequency dots and trails](https://raw.githubusercontent.com/pinzarulab/waveforms_audio/master/docs/gifs/dotSpectrum.gif) |
+| **Capsule bars** · `.capsuleBars()`<br>![Animated energy-filled capsule tracks](https://raw.githubusercontent.com/pinzarulab/waveforms_audio/master/docs/gifs/capsuleBars.gif) | **Minimal line** · `.minimalLine()`<br>![Animated compact waveform line](https://raw.githubusercontent.com/pinzarulab/waveforms_audio/master/docs/gifs/minimalLine.gif) |
 
 ### All style fields
 
