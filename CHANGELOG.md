@@ -1,3 +1,17 @@
+## Unreleased
+
+* Smooth orb and liquid-orb contours with gentler, continuous ripples. Center
+  dot-spectrum pairs in `both` mode while retaining up/down layouts.
+
+* Smooth the minimal-line frequency envelope and draw rounded curves, including
+  at very low density, to retain flowing contours with live audio.
+
+* Add a full-mix demo signal combining bass, voice, and air, with responsive
+  signal controls and a local browser gallery for animated README previews.
+
+* Add animated README previews for all 14 reactive styles and reproducible
+  Flutter/Pillow generation tools.
+
 ## 0.2.2
 
 * Fix GPU liquid-orb membranes and glow retaining active colors when an

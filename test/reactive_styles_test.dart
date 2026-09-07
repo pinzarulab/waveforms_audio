@@ -1,4 +1,5 @@
 import 'dart:ui' as ui;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +8,10 @@ import 'package:waveforms_audio/src/audio/frequency_analyzer.dart';
 import 'package:waveforms_audio/src/painters/reactive_waveform_painter.dart';
 
 class _RecordingCanvas implements Canvas {
+  final paths = <Path>[];
+  @override
+  void drawPath(Path path, Paint paint) => paths.add(Path.from(path));
+
   final bars = <({RRect shape, Color color})>[];
   final lines = <({Offset start, Offset end, Color color, Shader? shader})>[];
   @override
@@ -56,8 +61,8 @@ void main() {
         barCount: kind == VoiceVisualizerKind.voiceBars
             ? 5
             : kind == VoiceVisualizerKind.halo
-            ? 64
-            : 32,
+                ? 64
+                : 32,
       ),
     ).paint(canvas, size);
     frame.dispose();
@@ -110,6 +115,63 @@ void main() {
       loud.bars[2].shape.height,
       greaterThan(loud.bars.first.shape.height),
     );
+  });
+
+  test('minimal line stays rounded with sharp bands and low density', () {
+    for (final density in [0.001, 1.0, 3.0]) {
+      for (final symmetric in [false, true]) {
+        final frame = ValueNotifier(ReactiveFrame(
+            AudioSpectrum(
+                bands: List.generate(32, (i) => i.isEven ? 1.0 : 0.0),
+                level: 0.8),
+            0.8));
+        final canvas = _RecordingCanvas();
+        ReactiveWaveformPainter(
+          animation: frame,
+          style: VoiceVisualizerStyle.minimalLine(
+              density: density, symmetric: symmetric, glow: 0),
+        ).paint(canvas, const Size(400, 160));
+        final path = canvas.paths.single;
+        final metric = path.computeMetrics().single;
+        expect(path.getBounds().top.isFinite, isTrue);
+        expect(metric.getTangentForOffset(0)!.position.dy, closeTo(80, 0.01));
+        expect(metric.getTangentForOffset(metric.length)!.position.dy,
+            closeTo(80, 0.01));
+        var maxTurn = 0.0;
+        var previous = metric.getTangentForOffset(0)!.vector;
+        for (var offset = 0.5; offset < metric.length; offset += 0.5) {
+          final vector = metric.getTangentForOffset(offset)!.vector;
+          final turn = math
+              .atan2(previous.dx * vector.dy - previous.dy * vector.dx,
+                  previous.dx * vector.dx + previous.dy * vector.dy)
+              .abs();
+          maxTurn = math.max(maxTurn, turn);
+          previous = vector;
+        }
+        expect(maxTurn, lessThan(0.15),
+            reason: 'No angular kinks at density $density');
+        expect(path.getBounds().height, greaterThan(10),
+            reason: 'Retain audio response');
+        frame.dispose();
+      }
+    }
+  });
+
+  test('minimal line stays flat for silence and reduced motion', () {
+    for (final reduced in [false, true]) {
+      final frame = ValueNotifier(ReactiveFrame(
+          AudioSpectrum(
+              bands: List.filled(32, reduced ? 1 : 0), level: reduced ? 1 : 0),
+          1));
+      final canvas = _RecordingCanvas();
+      ReactiveWaveformPainter(
+        animation: frame,
+        style: const VoiceVisualizerStyle.minimalLine(glow: 0),
+        reducedMotion: reduced,
+      ).paint(canvas, const Size(400, 160));
+      expect(canvas.paths.single.getBounds().height, closeTo(0, 1e-8));
+      frame.dispose();
+    }
   });
 
   test('mirror separates solid bars from shorter fading reflections', () {

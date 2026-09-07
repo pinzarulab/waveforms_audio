@@ -122,7 +122,7 @@ void main() {
             .inactiveColor,
         isNull,
       );
-      for (final source in ['Bass', 'Air', 'Voice']) {
+      for (final source in ['Bass', 'Air', 'Voice', 'Full mix']) {
         await tester.ensureVisible(find.text(source));
         await tester.tap(find.text(source));
         for (var i = 0; i < 15; i++) {

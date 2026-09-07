@@ -283,6 +283,31 @@ drive a shared widget.
 the generic constructor and `copyWith()` expose every field. Treat supplied color
 lists as immutable. Equality compares all fields and color contents.
 
+### Animated previews
+
+**To view locally:** open [`docs/style-gallery.html`](docs/style-gallery.html)
+in Chrome, Safari, or Firefox. From Android Studio, locate that file, reveal it
+in Finder/File Explorer, then open it with your browser. Keep `docs/images/`
+beside it. This works without a local server and avoids relying on the IDE's
+Markdown preview. You can also open any `.gif` in `docs/images/styles/` directly
+in a browser.
+
+
+Real package renders with a shared four-color palette and looping synthetic
+frequency data. GPU is used for supported styles; the others use Canvas, matching
+`VoiceVisualizerRenderer.auto`. Motion and intensity depend on your audio and
+settings. Each preview is a silent, four-second loop.
+
+| | |
+| --- | --- |
+| **Orb** · `.orb()`<br>![Animated orb style](docs/images/styles/orb.gif) | **Liquid orb** · `.liquidOrb()`<br>![Animated liquid orb with membranes](docs/images/styles/liquidOrb.gif) |
+| **Wave** · `.wave()`<br>![Animated smooth wave style](docs/images/styles/wave.gif) | **Ribbon** · `.ribbon()`<br>![Animated flowing ribbon style](docs/images/styles/ribbon.gif) |
+| **Spectrum** · `.bars()`<br>![Animated spectrum bars](docs/images/styles/bars.gif) | **Upward bars** · `.upwardBars()`<br>![Animated bars rising from a baseline](docs/images/styles/upwardBars.gif) |
+| **Voice bars** · `.voiceBars()`<br>![Animated voice-focused pills](docs/images/styles/voiceBars.gif) | **Mirror spectrum** · `.mirrorSpectrum()`<br>![Animated spectrum with a fading reflection](docs/images/styles/mirrorSpectrum.gif) |
+| **Halo** · `.halo()`<br>![Animated rounded halo rays](docs/images/styles/halo.gif) | **Voice bloom** · `.voiceBloom()`<br>![Animated soft bloom petals](docs/images/styles/voiceBloom.gif) |
+| **Pulse rings** · `.pulseRings()`<br>![Animated pulse rings](docs/images/styles/pulseRings.gif) | **Dot spectrum** · `.dotSpectrum()`<br>![Animated frequency dots and trails](docs/images/styles/dotSpectrum.gif) |
+| **Capsule bars** · `.capsuleBars()`<br>![Animated energy-filled capsule tracks](docs/images/styles/capsuleBars.gif) | **Minimal line** · `.minimalLine()`<br>![Animated compact waveform line](docs/images/styles/minimalLine.gif) |
+
 ### All style fields
 
 | Field | Generic constructor default | Range / behavior |
@@ -507,7 +532,10 @@ cd example
 flutter run
 ```
 
-The example offers microphone input and synthetic signals. Microphone audio stays
+The example offers microphone input and synthetic signals. Choose **Demo signal**,
+then **Full mix** to drive bass, voice, and air together; individual **Bass**,
+**Voice**, and **Air** choices isolate each range. Synthetic signals animate the
+visualizer without audible playback. Microphone audio stays
 in memory and is not uploaded or saved by the example.
 
 Public API is exported from `package:waveforms_audio/waveforms_audio.dart`.

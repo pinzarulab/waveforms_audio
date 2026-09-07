@@ -24,7 +24,36 @@ const _mint = Color(0xFF9AF2D2);
 const _muted = Color(0xFF889B98);
 const _background = Color(0xFF0B1212);
 
-enum DemoSignal { bass, voice, air }
+enum DemoSignal { bass, voice, air, fullMix }
+
+/// Generates signed 48 kHz demo PCM at [time] seconds.
+/// Full mix retains headroom while exciting bass, voice, and air together.
+double demoSignalSample(DemoSignal signal, double time) {
+  switch (signal) {
+    case DemoSignal.bass:
+      final beat = time % 0.8;
+      final envelope = (1 - math.exp(-beat * 90)) * math.exp(-beat * 6);
+      return math.sin(2 * math.pi * 90 * time) * envelope * 0.8;
+    case DemoSignal.voice:
+      final phrase = math.pow(0.5 + 0.5 * math.sin(time * 2.1), 2);
+      final syllable = 0.35 + 0.65 * math.pow(math.sin(time * 7.2), 2);
+      final fundamental = math.sin(2 * math.pi * 180 * time);
+      final formants =
+          math.sin(2 * math.pi * 720 * time) * 0.42 +
+          math.sin(2 * math.pi * 1440 * time) * 0.2;
+      return (fundamental * 0.35 + formants) * phrase * syllable * 0.65;
+    case DemoSignal.fullMix:
+      return (demoSignalSample(DemoSignal.bass, time) +
+              demoSignalSample(DemoSignal.voice, time) +
+              demoSignalSample(DemoSignal.air, time)) *
+          0.45;
+    case DemoSignal.air:
+      final shimmer = 0.15 + 0.85 * math.pow(0.5 + 0.5 * math.sin(time * 5), 2);
+      return (math.sin(2 * math.pi * 3600 * time) * 0.35 +
+              math.sin(2 * math.pi * 7200 * time) * 0.18) *
+          shimmer;
+  }
+}
 
 enum DemoPalette { speaker, violet, emerald }
 
@@ -178,26 +207,7 @@ class _VisualizerShowcaseState extends State<VisualizerShowcase>
       if (!_playing || _useMicrophone) return;
       final samples = List<double>.generate(768, (_) {
         final time = _sampleCursor++ / _sampleRate;
-        switch (_signal) {
-          case DemoSignal.bass:
-            final beat = time % 0.8;
-            final envelope = (1 - math.exp(-beat * 90)) * math.exp(-beat * 6);
-            return math.sin(2 * math.pi * 90 * time) * envelope * 0.8;
-          case DemoSignal.voice:
-            final phrase = math.pow(0.5 + 0.5 * math.sin(time * 2.1), 2);
-            final syllable = 0.35 + 0.65 * math.pow(math.sin(time * 7.2), 2);
-            final fundamental = math.sin(2 * math.pi * 180 * time);
-            final formants =
-                math.sin(2 * math.pi * 720 * time) * 0.42 +
-                math.sin(2 * math.pi * 1440 * time) * 0.2;
-            return (fundamental * 0.35 + formants) * phrase * syllable * 0.65;
-          case DemoSignal.air:
-            final shimmer =
-                0.15 + 0.85 * math.pow(0.5 + 0.5 * math.sin(time * 5), 2);
-            return (math.sin(2 * math.pi * 3600 * time) * 0.35 +
-                    math.sin(2 * math.pi * 7200 * time) * 0.18) *
-                shimmer;
-        }
+        return demoSignalSample(_signal, time);
       });
       _stream.add(samples);
     });
@@ -606,32 +616,39 @@ class _VisualizerShowcaseState extends State<VisualizerShowcase>
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: DemoSignal.values
-                        .map(
-                          (signal) => Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 3,
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final columns = constraints.maxWidth < 420 ? 2 : 4;
+                      final width =
+                          (constraints.maxWidth - (columns - 1) * 6) / columns;
+                      return Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: DemoSignal.values
+                            .map(
+                              (signal) => SizedBox(
+                                width: width,
+                                child: _Choice(
+                                  label: switch (signal) {
+                                    DemoSignal.bass => 'Bass',
+                                    DemoSignal.voice => 'Voice',
+                                    DemoSignal.air => 'Air',
+                                    DemoSignal.fullMix => 'Full mix',
+                                  },
+                                  subtitle: switch (signal) {
+                                    DemoSignal.bass => '90 Hz',
+                                    DemoSignal.voice => '180–1.4k Hz',
+                                    DemoSignal.air => '3.6–7.2k Hz',
+                                    DemoSignal.fullMix => 'All bands',
+                                  },
+                                  selected: _signal == signal,
+                                  onTap: () => setState(() => _signal = signal),
+                                ),
                               ),
-                              child: _Choice(
-                                label: switch (signal) {
-                                  DemoSignal.bass => 'Bass',
-                                  DemoSignal.voice => 'Voice',
-                                  DemoSignal.air => 'Air',
-                                },
-                                subtitle: switch (signal) {
-                                  DemoSignal.bass => '90 Hz',
-                                  DemoSignal.voice => '180–1.4k Hz',
-                                  DemoSignal.air => '3.6–7.2k Hz',
-                                },
-                                selected: _signal == signal,
-                                onTap: () => setState(() => _signal = signal),
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
+                            )
+                            .toList(),
+                      );
+                    },
                   ),
                   const SizedBox(height: 24),
                   Row(

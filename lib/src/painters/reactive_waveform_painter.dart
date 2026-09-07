@@ -31,12 +31,12 @@ class ReactiveWaveformPainter extends CustomPainter {
       ? const [Color(0xFF72F5D1), Color(0xFF6B8CFF)]
       : style.colors;
   double get activity => math.max(
-    spectrum.level,
-    math.max(
-      spectrum.peak,
-      math.max(spectrum.bass, math.max(spectrum.mids, spectrum.treble)),
-    ),
-  );
+        spectrum.level,
+        math.max(
+          spectrum.peak,
+          math.max(spectrum.bass, math.max(spectrum.mids, spectrum.treble)),
+        ),
+      );
   double get breath => reducedMotion || idleBreathing == 0
       ? 0
       : idleBreathing * (0.72 + math.sin(phase * math.pi * 2) * 0.28);
@@ -89,7 +89,8 @@ class ReactiveWaveformPainter extends CustomPainter {
   Color _color(double energy, double position) {
     final active = _activeColor(position);
     if (style.inactiveColor case final inactive?) {
-      final amount = Curves.easeOut.transform((activity / 0.24).clamp(0.0, 1.0));
+      final amount =
+          Curves.easeOut.transform((activity / 0.24).clamp(0.0, 1.0));
       return Color.lerp(inactive, active, amount)!;
     }
     return active;
@@ -102,8 +103,7 @@ class ReactiveWaveformPainter extends CustomPainter {
     final low = value.floor();
     final high = math.min(low + 1, bands.length - 1);
     final raw = bands[low] + (bands[high] - bands[low]) * (value - low);
-    final nearby =
-        bands[math.max(0, low - 1)] +
+    final nearby = bands[math.max(0, low - 1)] +
         bands[math.min(bands.length - 1, high + 1)];
     final idle =
         breath * (0.78 + 0.22 * math.sin(position * math.pi * 5 + phase));
@@ -154,21 +154,22 @@ class ReactiveWaveformPainter extends CustomPainter {
       canvas.drawCircle(center, radius * 1.2, _glow(0.5, energy, unit * 0.09));
     }
     final layers = liquid ? 4 : 3;
-    final count = (88 * style.density).round().clamp(48, 220);
+    final count = (128 * style.density).round().clamp(96, 384);
     for (var layer = layers - 1; layer >= 0; layer--) {
       final points = <Offset>[];
       for (var i = 0; i < count; i++) {
         final angle = i * math.pi * 2 / count;
-        final local = _band((1 - math.cos(angle)) / 2);
+        final local = _fluidBand((1 - math.cos(angle)) / 2);
         final deformation = reducedMotion
             ? 0.0
-            : math.sin(angle * 3 + phase * 1.6 + layer) *
-                      spectrum.mids *
-                      0.065 +
-                  math.sin(angle * (liquid ? 5 : 7) - phase * 2.1) *
-                      local *
-                      (liquid ? 0.055 : 0.022) +
-                  math.sin(angle * 2 - phase) * spectrum.bass * 0.04;
+            : math.sin(angle * 3 + phase * 0.8 + layer) *
+                    spectrum.mids *
+                    0.045 +
+                math.sin(angle * (3 + style.density).round().clamp(3, 6) -
+                        phase * 1.05) *
+                    local *
+                    (liquid ? 0.03 : 0.018) +
+                math.sin(angle * 2 - phase * 0.6) * spectrum.bass * 0.028;
         final r = radius * (1 + layer * (liquid ? 0.045 : 0.055) + deformation);
         points.add(center + Offset(math.cos(angle), math.sin(angle)) * r);
       }
@@ -177,17 +178,16 @@ class ReactiveWaveformPainter extends CustomPainter {
         canvas.drawPath(
           path,
           Paint()
-            ..shader =
-                RadialGradient(
-                  center: const Alignment(-0.45, -0.5),
-                  colors: [
-                    Color.lerp(_color(activity, 0), Colors.white, 0.32)!,
-                    _color(activity, 0.4),
-                    _color(activity, 1),
-                  ],
-                ).createShader(
-                  Rect.fromCircle(center: center, radius: radius * 1.35),
-                ),
+            ..shader = RadialGradient(
+              center: const Alignment(-0.45, -0.5),
+              colors: [
+                Color.lerp(_color(activity, 0), Colors.white, 0.32)!,
+                _color(activity, 0.4),
+                _color(activity, 1),
+              ],
+            ).createShader(
+              Rect.fromCircle(center: center, radius: radius * 1.35),
+            ),
         );
       } else {
         canvas.drawPath(
@@ -231,11 +231,11 @@ class ReactiveWaveformPainter extends CustomPainter {
   }
 
   Shader _spatialGradient(Rect bounds, double energy) => LinearGradient(
-    colors: List.generate(
-      math.max(2, palette.length),
-      (i) => _color(energy, i / (math.max(2, palette.length) - 1)),
-    ),
-  ).createShader(bounds);
+        colors: List.generate(
+          math.max(2, palette.length),
+          (i) => _color(energy, i / (math.max(2, palette.length) - 1)),
+        ),
+      ).createShader(bounds);
 
   void _wave(Canvas canvas, Size size) {
     final center = size.height / 2;
@@ -249,11 +249,9 @@ class ReactiveWaveformPainter extends CustomPainter {
         final carrier = reducedMotion
             ? 0.0
             : math.sin(
-                    position * math.pi * (2.0 + layer * 0.35) -
-                        phase * 2 +
-                        layer,
-                  ) *
-                  energy;
+                  position * math.pi * (2.0 + layer * 0.35) - phase * 2 + layer,
+                ) *
+                energy;
         var y = center - (energy * 0.24 + carrier * 0.12) * taper * size.height;
         if (style.direction == VoiceVisualizerDirection.down) {
           y = size.height - y;
@@ -297,31 +295,29 @@ class ReactiveWaveformPainter extends CustomPainter {
   void _bars(Canvas canvas, Size size) {
     final count = _count();
     final layout = _barLayout(size, count);
-    final upward =
-        style.kind == VoiceVisualizerKind.upwardBars ||
+    final upward = style.kind == VoiceVisualizerKind.upwardBars ||
         style.direction == VoiceVisualizerDirection.up;
     final downward = style.direction == VoiceVisualizerDirection.down;
     final baseline = upward
         ? size.height * 0.84
         : downward
-        ? size.height * 0.16
-        : size.height / 2;
+            ? size.height * 0.16
+            : size.height / 2;
     for (var i = 0; i < count; i++) {
       final position = i / math.max(1, count - 1);
       final energy = _band(_sourcePosition(position));
-      final height =
-          layout.width +
+      final height = layout.width +
           energy * (size.height * (upward ? 0.66 : 0.58) - layout.width);
       final x = layout.left + i * (layout.width + layout.gap);
       final rect = upward
           ? Rect.fromLTWH(x, baseline - height, layout.width, height)
           : downward
-          ? Rect.fromLTWH(x, baseline, layout.width, height)
-          : Rect.fromCenter(
-              center: Offset(x + layout.width / 2, baseline),
-              width: layout.width,
-              height: height,
-            );
+              ? Rect.fromLTWH(x, baseline, layout.width, height)
+              : Rect.fromCenter(
+                  center: Offset(x + layout.width / 2, baseline),
+                  width: layout.width,
+                  height: height,
+                );
       final radius = Radius.circular(
         math.min(style.cornerRadius, layout.width / 2),
       );
@@ -344,10 +340,9 @@ class ReactiveWaveformPainter extends CustomPainter {
     for (var i = 0; i < count; i++) {
       final position = i / math.max(1, count - 1);
       final silhouette = 0.55 + 0.45 * math.sin(position * math.pi);
-      final energy =
-          (_band(_sourcePosition(position)) * 0.82 +
-                  spectrum.voiceActivity * 0.18)
-              .clamp(0.0, 1.0);
+      final energy = (_band(_sourcePosition(position)) * 0.82 +
+              spectrum.voiceActivity * 0.18)
+          .clamp(0.0, 1.0);
       final height = layout.width + energy * size.height * 0.52 * silhouette;
       final rect = Rect.fromCenter(
         center: Offset(
@@ -466,8 +461,7 @@ class ReactiveWaveformPainter extends CustomPainter {
                 position * math.pi * (1.6 + layer * 0.2) -
                     phase * (1.2 + layer * 0.08),
               );
-        final y =
-            size.height / 2 +
+        final y = size.height / 2 +
             wave * (8 + energy * size.height * 0.22) +
             (layer - 2) * 3;
         points.add(Offset(position * size.width, y));
@@ -510,9 +504,8 @@ class ReactiveWaveformPainter extends CustomPainter {
     final energy = math.max(activity, breath);
     final count = _count(maximum: 9);
     for (var i = count - 1; i >= 0; i--) {
-      final progress = reducedMotion
-          ? i / count
-          : (phase * 0.22 + i / count) % 1;
+      final progress =
+          reducedMotion ? i / count : (phase * 0.22 + i / count) % 1;
       canvas.drawCircle(
         center,
         maxRadius * (0.22 + progress * 0.78),
@@ -536,30 +529,39 @@ class ReactiveWaveformPainter extends CustomPainter {
     final width = size.width * 0.88;
     final step = width / math.max(1, count - 1);
     final left = (size.width - width) / 2;
+    final centered = style.direction == VoiceVisualizerDirection.both;
+    final downward = style.direction == VoiceVisualizerDirection.down;
+    final baseline = size.height *
+        (centered
+            ? 0.5
+            : downward
+                ? 0.18
+                : 0.82);
     for (var i = 0; i < count; i++) {
       final position = i / math.max(1, count - 1);
       final energy = _band(_sourcePosition(position));
-      final baseline = style.direction == VoiceVisualizerDirection.both
-          ? size.height / 2
-          : style.direction == VoiceVisualizerDirection.down
-          ? size.height * 0.18
-          : size.height * 0.82;
-      final y = style.direction == VoiceVisualizerDirection.down
-          ? baseline + energy * size.height * 0.64
-          : baseline - energy * size.height * 0.64;
-      final point = Offset(left + i * step, y);
+      final displacement = energy * size.height * (centered ? 0.28 : 0.64);
       final color = _color(energy, position);
-      canvas.drawLine(
-        Offset(point.dx, baseline),
-        point,
-        Paint()
-          ..strokeWidth = 1
-          ..color = color.withValues(alpha: 0.1 + energy * 0.22),
-      );
-      if (style.glow > 0) {
-        canvas.drawCircle(point, 3 + energy * 2, _glow(position, energy, 5));
+      final radius = math.min(2 + energy * 2.2, size.shortestSide * 0.08);
+      void dot(double y) {
+        final point = Offset(left + i * step, y);
+        canvas.drawLine(
+          Offset(point.dx, baseline),
+          point,
+          Paint()
+            ..strokeWidth = 1
+            ..color = color.withValues(alpha: 0.1 + energy * 0.22),
+        );
+        if (style.glow > 0) {
+          canvas.drawCircle(point, radius + 1, _glow(position, energy, 5));
+        }
+        canvas.drawCircle(point, radius, Paint()..color = color);
       }
-      canvas.drawCircle(point, 2 + energy * 2.2, Paint()..color = color);
+
+      dot(baseline + (downward ? displacement : -displacement));
+      // Both means a centered pair, rather than an upward-only curve that
+      // can escape the top of the widget. Merge the pair at rest.
+      if (centered && displacement > 0.01) dot(baseline + displacement);
     }
   }
 
@@ -610,10 +612,9 @@ class ReactiveWaveformPainter extends CustomPainter {
     final points = <Offset>[];
     for (var i = 0; i < count * 24; i++) {
       final angle = i / (count * 24) * math.pi * 2 - math.pi / 2;
-      final energy =
-          (_fluidBand((1 - math.cos(angle)) / 2) * 0.75 +
-                  spectrum.voiceActivity * 0.25)
-              .clamp(0.0, 1.0);
+      final energy = (_fluidBand((1 - math.cos(angle)) / 2) * 0.75 +
+              spectrum.voiceActivity * 0.25)
+          .clamp(0.0, 1.0);
       final lobe = (1 + math.cos((angle + math.pi / 2) * count)) / 2;
       final radius =
           unit * (0.19 + energy * 0.035 + lobe * (0.014 + energy * 0.035));
@@ -654,28 +655,28 @@ class ReactiveWaveformPainter extends CustomPainter {
   }
 
   void _minimalLine(Canvas canvas, Size size) {
-    final path = Path();
-    final count = (100 * style.density).round();
+    final points = <Offset>[];
+    final count = (100 * style.density).round().clamp(48, 300);
     for (var i = 0; i <= count; i++) {
       final position = i / count;
       final taper = math.sin(position * math.pi);
-      final carrier = reducedMotion
-          ? 0.0
-          : math.sin(position * math.pi * 5 - phase * 2.2);
-      var y =
-          size.height / 2 -
+      final carrier =
+          reducedMotion ? 0.0 : math.sin(position * math.pi * 5 - phase * 2.2);
+      var y = size.height / 2 -
           carrier *
-              _band(_sourcePosition(position)) *
+              _fluidBand(_fluidSource(position)) *
               size.height *
               0.3 *
               taper;
       if (style.direction == VoiceVisualizerDirection.down) y = size.height - y;
-      i == 0 ? path.moveTo(0, y) : path.lineTo(position * size.width, y);
+      points.add(Offset(position * size.width, y));
     }
+    final path = _openCurve(points);
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.2
       ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
       ..shader = LinearGradient(
         colors: List<Color>.generate(
           math.max(2, palette.length),

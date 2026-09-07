@@ -115,13 +115,13 @@ vec4 finish(vec3 color, float alpha) {
 
 float liquidMembrane(vec2 point, float radius, float layer, float motion) {
   float angle = angleOf(point);
-  float detail = max(0.55, uDensity);
-  float local = bandAt(radialBandPosition(angle));
+  float detail = clamp(floor(3.0 + uDensity + 0.5), 3.0, 6.0);
+  float local = fluidBand(radialBandPosition(angle));
   float deformation =
-      sin(angle * 3.0 + uTime * 1.6 + layer) * uMids * 0.065 +
-      sin(angle * (4.0 + detail) - uTime * 2.1 + layer * 0.7) *
-          (uTreble * 0.024 + local * 0.032 + uVoiceActivity * 0.018) +
-      sin(angle * 2.0 - uTime + layer * 0.35) * uBass * 0.042;
+      sin(angle * 3.0 + uTime * 0.8 + layer) * uMids * 0.045 +
+      sin(angle * detail - uTime * 1.05 + layer * 0.7) *
+          (uTreble * 0.016 + local * 0.020 + uVoiceActivity * 0.012) +
+      sin(angle * 2.0 - uTime * 0.6 + layer * 0.35) * uBass * 0.028;
   return length(point) - radius * (1.0 + layer * 0.046 + deformation * motion);
 }
 
@@ -161,12 +161,13 @@ vec4 liquidOrb(vec2 point, float unit, float activity, float breathing,
 vec4 orb(vec2 point, float unit, float activity, float breathing,
          float activation, float motion) {
   float angle = angleOf(point);
-  float position = fract((angle + PI) / TAU);
-  float energy = bandAt(radialBandPosition(angle));
+  float energy = fluidBand(radialBandPosition(angle));
+  // Whole angular harmonics join continuously across the polar seam.
+  float detail = clamp(floor(3.0 + uDensity + 0.5), 3.0, 6.0);
   float radius = 0.23 + breathing * 0.025 +
-      energy * 0.055 + uBass * 0.018 +
-      sin(angle * (5.0 + uDensity * 2.0) - uTime * 1.8) *
-          uTreble * 0.012 * motion;
+      energy * 0.025 + uBass * 0.018 +
+      (sin(angle * 3.0 - uTime * 0.8) * uMids * 0.009 +
+       sin(angle * detail - uTime * 1.05) * uTreble * 0.004) * motion;
   float d = length(point) - radius;
   float aa = max(1.25 / unit, 0.0012);
   float fill = 1.0 - smoothstep(-aa, aa, d);
