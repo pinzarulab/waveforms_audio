@@ -1,3 +1,15 @@
+## 0.2.0
+
+* Smooth wave and ribbon contours across frequency bands in both renderers.
+* Redesign halo with rounded rays and bloom with a continuous petal silhouette;
+  apply seamless spatial gradients across every palette stop.
+* Give mirror spectrum a separated, fading reflection distinct from spectrum bars.
+
+* Add streaming mono PCM resampling with controller output-rate selection,
+  per-call source rates, and explicit tail flushing.
+* Preserve up to four GPU gradient stops and use Canvas for longer palettes.
+  Correct wave-layer palette positions to include the final color.
+
 ## 0.1.0
 
 * Add a shared cross-backend fragment shader for orb, wave, halo, ribbon,

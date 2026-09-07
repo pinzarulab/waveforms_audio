@@ -52,6 +52,24 @@ Call `audio.dispose()` when the owning screen or call ends.
 `ReactiveAudioController.addBase64` accepts plain base64 and base64 data URLs.
 `addSamples` accepts already-normalized mono samples and clamps them to -1–1.
 
+Set a fixed output rate with `ReactiveAudioController(format: sourceFormat,
+sampleRate: 48000)`. The format describes the input PCM; `controller.sampleRate`
+and its stream use the output rate. Override the input rate per chunk when an API
+switches rates (encoding and channel layout still follow `format`):
+
+```dart
+audio.addBytes(pcm16Bytes, sourceSampleRate: 16000);
+audio.addBase64(base64Pcm, sourceSampleRate: 24000);
+audio.addSamples(monoSamples, sourceSampleRate: 44100);
+```
+
+Omitting `sourceSampleRate` uses `format.sampleRate`. Streaming linear
+interpolation preserves timing across arbitrary chunks. `flush()` emits the
+pending tail at an utterance boundary; `close()` also flushes. Changing source
+rate flushes the old tail and discards incomplete PCM frames. `resetDecoder()`
+discards both decoder and resampler state. The exported `PcmResampler` also works
+independently. It targets visualization and does not apply an anti-aliasing filter.
+
 MP3, AAC, Opus, and container formats are compressed. Decode them in the host
 application or playback SDK, then feed their PCM output to this package. Send
 remote or AI PCM when it is played, rather than when the whole response first
@@ -131,6 +149,11 @@ ReactiveAudioVisualizer(
 
 System reduced-motion settings disable continuous deformation while preserving
 the current audio state.
+
+GPU palettes support one through four evenly spaced color stops, including
+intermediate colors. Longer palettes automatically use Canvas to preserve every
+stop, even when the shader renderer is requested. GPU and Canvas share palette
+interpolation; their effect geometry and lighting remain renderer-specific.
 
 ## GPU fragment shader
 

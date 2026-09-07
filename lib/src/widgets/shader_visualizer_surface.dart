@@ -67,7 +67,10 @@ class _ShaderVisualizerSurfaceState extends State<ShaderVisualizerSurface> {
   @override
   Widget build(BuildContext context) {
     final shader = _shader;
-    if (shader != null && !_failed) {
+    if (shader != null &&
+        !_failed &&
+        widget.style.colors.length <=
+            VisualizerEffectsShaderInstance.maxColorStops) {
       return CustomPaint(
         painter: ShaderWaveformPainter(
           animation: widget.animation,

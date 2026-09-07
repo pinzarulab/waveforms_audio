@@ -8,13 +8,17 @@ import 'package:waveforms_audio/src/painters/reactive_waveform_painter.dart';
 
 class _RecordingCanvas implements Canvas {
   final bars = <({RRect shape, Color color})>[];
-  final lines = <({Offset start, Offset end, Color color})>[];
+  final lines = <({Offset start, Offset end, Color color, Shader? shader})>[];
   @override
   void drawRRect(RRect rrect, Paint paint) =>
       bars.add((shape: rrect, color: paint.color));
   @override
-  void drawLine(Offset p1, Offset p2, Paint paint) =>
-      lines.add((start: p1, end: p2, color: paint.color));
+  void drawLine(Offset p1, Offset p2, Paint paint) {
+    if (paint.maskFilter == null) {
+      lines.add((start: p1, end: p2, color: paint.color, shader: paint.shader));
+    }
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
@@ -108,12 +112,24 @@ void main() {
     );
   });
 
+  test('mirror separates solid bars from shorter fading reflections', () {
+    final mirror = draw(VoiceVisualizerKind.mirrorSpectrum, 0.8);
+    expect(mirror.bars.length, 64);
+    for (var i = 0; i < 64; i += 2) {
+      final upper = mirror.bars[i].shape;
+      final reflection = mirror.bars[i + 1].shape;
+      expect(upper.bottom, lessThan(reflection.top));
+      expect(reflection.height, closeTo(upper.height * 0.72, 1e-8));
+      expect(upper.left, reflection.left);
+    }
+  });
+
   test('halo has 64 idle segments that extend outwards with audio', () {
     final idle = draw(VoiceVisualizerKind.halo, 0);
     final loud = draw(VoiceVisualizerKind.halo, 1);
     expect(idle.lines.length, 64);
     for (var i = 0; i < 64; i++) {
-      expect(idle.lines[i].color.toARGB32(), inactive.toARGB32());
+      expect(idle.lines[i].shader, isNotNull);
       expect(
         (loud.lines[i].end - loud.lines[i].start).distance,
         greaterThan((idle.lines[i].end - idle.lines[i].start).distance),

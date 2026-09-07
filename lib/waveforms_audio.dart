@@ -14,3 +14,4 @@ export 'src/styles/voice_visualizer_style.dart';
 export 'src/widgets/reactive_audio_visualizer.dart';
 export 'src/widgets/voice_chat_visualizer.dart';
 export 'src/audio/pcm16_decoder.dart';
+export 'src/audio/pcm_resampler.dart';

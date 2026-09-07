@@ -26,6 +26,8 @@ class VisualizerEffectsShaderProgram {
 }
 
 class VisualizerEffectsShaderInstance {
+  static const maxColorStops = 4;
+
   final ui.FragmentShader shader;
 
   VisualizerEffectsShaderInstance(ui.FragmentProgram program)
@@ -42,6 +44,9 @@ class VisualizerEffectsShaderInstance {
     final colors = style.colors.isEmpty
         ? const [Color(0xFF72F5D1), Color(0xFF6B8CFF)]
         : style.colors;
+    if (colors.length > maxColorStops) {
+      throw ArgumentError('GPU palettes support at most four colors');
+    }
     final primary = colors.first;
     final secondary = colors.last;
     final inactive = style.inactiveColor ?? primary;
@@ -72,6 +77,9 @@ class VisualizerEffectsShaderInstance {
       shader.setFloat(29 + index, _sampleBand(spectrum.bands, index / 7));
     }
     shader.setFloat(37, style.barCount.toDouble());
+    _setColor(38, colors.length > 1 ? colors[1] : primary);
+    _setColor(42, colors.length > 2 ? colors[2] : secondary);
+    shader.setFloat(46, colors.length.toDouble());
   }
 
   double _sampleBand(List<double> bands, double position) {

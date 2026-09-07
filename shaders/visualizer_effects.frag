@@ -31,6 +31,9 @@ uniform float uBand5;
 uniform float uBand6;
 uniform float uBand7;
 uniform float uBarCount;
+uniform vec4 uColor1;
+uniform vec4 uColor2;
+uniform float uColorCount;
 
 out vec4 fragColor;
 
@@ -61,6 +64,23 @@ float bandAt(float position) {
   return mix(uBand6, uBand7, p - 6.0);
 }
 
+float fluidBand(float position) {
+  float total = 0.0;
+  float weight = 0.0;
+  for (int i = 0; i < 8; i++) {
+    float x = float(i) / 7.0;
+    float d = (position - x) / 0.22;
+    float w = exp(-d * d * 2.0);
+    total += bandAt(x) * w;
+    weight += w;
+  }
+  return total / weight;
+}
+
+float fluidSource(float position) {
+  return mix(position, (1.0 + cos(position * TAU)) * 0.5, uSymmetric);
+}
+
 float sourcePosition(float position) {
   return mix(position, abs(position - 0.5) * 2.0, uSymmetric);
 }
@@ -73,9 +93,17 @@ float glowMask(float distance, float strength, float scale) {
   return exp(-abs(distance) * scale) * uGlow * strength;
 }
 
+// Evenly spaced stops, matching Canvas _activeColor interpolation.
+vec4 gradientColor(float position) {
+  float p = saturate(position) * (uColorCount - 1.0);
+  if (uColorCount < 1.5) return uPrimaryColor;
+  if (p <= 1.0) return mix(uPrimaryColor, uColor1, p);
+  if (p <= 2.0) return mix(uColor1, uColor2, p - 1.0);
+  return mix(uColor2, uSecondaryColor, p - 2.0);
+}
+
 vec3 palette(float position, float activation) {
-  vec3 activePalette = mix(
-      uPrimaryColor.rgb, uSecondaryColor.rgb, saturate(position));
+  vec3 activePalette = gradientColor(position).rgb;
   vec3 resting = mix(activePalette, uInactiveColor.rgb, uHasInactiveColor);
   return mix(resting, activePalette, activation);
 }
@@ -123,7 +151,7 @@ vec4 liquidOrb(vec2 point, float unit, float activity, float breathing,
   float highlight = exp(-dot(lightDelta, lightDelta) * 34.0);
   color = mix(color, vec3(1.0), highlight * fill * 0.18);
   float membranes = edge1 * 0.20 + edge2 * 0.15 + edge3 * 0.11;
-  float alpha = fill * mix(uPrimaryColor.a, uSecondaryColor.a, shift) +
+  float alpha = fill * gradientColor(shift).a +
       edge0 * 0.42 + membranes + glow;
   vec3 rgb = color * (fill + edge0 * 0.30) +
       uPrimaryColor.rgb * glow + uSecondaryColor.rgb * membranes;
@@ -165,7 +193,7 @@ vec4 waves(vec2 uv, float activity, float activation, float motion,
   float weight = 0.0;
   for (int i = 0; i < 5; i++) {
     float layer = float(i);
-    float rawEnergy = bandAt(sourcePosition(uv.x));
+    float rawEnergy = fluidBand(fluidSource(uv.x));
     float idle = breathing *
         (0.78 + 0.22 * sin(uv.x * PI * 5.0 + uTime));
     float energy = max(rawEnergy, idle);
@@ -173,7 +201,7 @@ vec4 waves(vec2 uv, float activity, float activation, float motion,
     float mirrorField;
     float prominence;
     if (ribbonMode) {
-      float carrier = sin(uv.x * PI * (2.2 + layer * 0.32) -
+      float carrier = sin(uv.x * PI * (1.6 + layer * 0.2) -
           uTime * (1.2 + layer * 0.08)) * motion;
       field = carrier * (8.0 / max(uSize.y, 1.0) + energy * 0.22) +
           (layer - 2.0) * 3.0 / max(uSize.y, 1.0);
@@ -182,7 +210,7 @@ vec4 waves(vec2 uv, float activity, float activation, float motion,
     } else {
       if (i >= 4) continue;
       float taper = pow(max(0.0, sin(uv.x * PI)), 1.5);
-      float carrier = sin(uv.x * PI * (4.0 + layer) -
+      float carrier = sin(uv.x * PI * (2.0 + layer * 0.35) -
           uTime * 2.0 + layer) * energy * motion;
       float displacement =
           (energy * 0.24 + carrier * 0.12) * taper;
@@ -207,7 +235,7 @@ vec4 waves(vec2 uv, float activity, float activation, float motion,
     if (mirrored) {
       haze += glowMask(y - mirrorField, 0.015 + activity * 0.025, 46.0);
     }
-    vec3 color = palette(layer / 4.0, activation);
+    vec3 color = palette(layer / (ribbonMode ? 4.0 : 3.0), activation);
     rgb += color * (line + haze);
     sharp += line;
     glow += haze;
@@ -220,23 +248,24 @@ vec4 waves(vec2 uv, float activity, float activation, float motion,
 vec4 halo(vec2 point, float unit, float activity, float breathing,
           float activation, float motion) {
   float angle = angleOf(point);
-  float position = fract((angle + PI) / TAU);
-  float energy = max(bandAt(radialBandPosition(angle)), breathing);
   float radius = length(point);
+  float count = clamp(floor(uBarCount * uDensity + 0.5), 12.0, 192.0);
+  float sector = TAU / count;
+  float localAngle = mod(angle + PI * 0.5 + sector * 0.5, sector) - sector * 0.5;
+  float rayAngle = angle - localAngle;
+  float energy = max(fluidBand(radialBandPosition(rayAngle)), breathing);
   float inner = 0.25 + uBass * 0.02;
-  float outer = inner + 0.01 + energy * 0.10;
-  float aa = max(1.25 / unit, 0.0012);
-  float count = clamp(uBarCount * uDensity, 12.0, 192.0);
-  float segment = fract((position + 0.25) * count);
-  float angular = smoothstep(0.08, 0.18, segment) *
-      (1.0 - smoothstep(0.82, 0.92, segment));
-  float radial = smoothstep(inner - aa, inner + aa, radius) *
-      (1.0 - smoothstep(outer - aa, outer + aa, radius));
-  float ray = angular * radial;
-  float edgeDistance = max(inner - radius, radius - outer);
-  float glow = angular * glowMask(max(edgeDistance, 0.0),
-      0.025 + activity * 0.10, 52.0);
-  return finish(palette(position, activation), ray * 0.94 + glow);
+  float rayLength = 0.012 + energy * 0.09;
+  float halfWidth = min(0.014, inner * TAU / count * 0.55) * 0.5;
+  // Distance to a radial capsule gives both ends the same soft round cap.
+  float radial = radius * cos(localAngle) - inner;
+  float tangent = radius * sin(localAngle);
+  float d = length(vec2(tangent, radial - clamp(radial, 0.0, rayLength))) - halfWidth;
+  float aa = max(0.8 / unit, 0.0008);
+  float ray = 1.0 - smoothstep(-aa, aa, d);
+  float ring = lineMask(radius - (inner - 0.018), 0.002, aa) * 0.33;
+  float glow = exp(-max(d, 0.0) * 90.0) * uGlow * 0.18;
+  return finish(palette(point.x / 0.76 + 0.5, activation), ray + ring + glow);
 }
 
 vec4 pulseRings(vec2 point, float unit, float activity, float activation,
@@ -268,32 +297,22 @@ vec4 pulseRings(vec2 point, float unit, float activity, float activation,
 }
 
 vec4 bloom(vec2 point, float activity, float activation, float motion) {
-  float radius = length(point);
   float angle = angleOf(point);
-  float position = fract((angle + PI) / TAU);
-  float energy = saturate(
-      bandAt(radialBandPosition(angle)) * 0.75 +
+  float energy = saturate(fluidBand(radialBandPosition(angle)) * 0.75 +
       uVoiceActivity * 0.25);
-  float count = clamp(uBarCount * uDensity, 6.0, 64.0);
-  float sector = TAU / count;
-  float localAngle = mod(angle + PI + sector * 0.5, sector) - sector * 0.5;
-  float petalCenter = 0.16 + energy * 0.09;
-  float radialSize = 0.035 + energy * 0.05;
-  float tangentSize = 0.0125 + energy * 0.0175;
-  float radialDistance = (radius - petalCenter) / radialSize;
-  float tangentDistance =
-      (sin(localAngle) * max(radius, 0.001)) / tangentSize;
-  float ellipse = length(vec2(radialDistance, tangentDistance));
-  float aa = max(1.25 / min(uSize.x, uSize.y), 0.0012);
-  float petal = 1.0 - smoothstep(0.90, 1.0 + aa * 18.0, ellipse);
-  float core = 1.0 - smoothstep(0.16 - aa, 0.16 + aa, radius);
-  float coreGlow = glowMask(max(radius - 0.16, 0.0),
-      0.05 + activity * 0.18, 30.0);
-  vec3 color = palette(position, activation);
-  float coreShift = saturate(0.5 - point.y * 2.0 + point.x * 0.3);
-  vec3 coreColor = palette(coreShift, activation);
-  color = mix(color, coreColor, core);
-  return finish(color, petal * (0.50 + energy * 0.50) + core + coreGlow);
+  float count = clamp(floor(uBarCount * uDensity + 0.5), 6.0, 12.0);
+  float lobe = (1.0 + cos((angle + PI * 0.5) * count)) * 0.5;
+  float radius = 0.19 + energy * 0.035 + lobe * (0.014 + energy * 0.035);
+  float d = length(point) - radius;
+  float aa = max(0.8 / min(uSize.x, uSize.y), 0.0008);
+  float fill = 1.0 - smoothstep(-aa, aa, d);
+  float edge = lineMask(d, 0.0015, aa) * 0.25;
+  float glow = exp(-max(d, 0.0) * 38.0) * uGlow * 0.25;
+  vec3 color = palette(point.x / 0.60 + 0.5, activation);
+  vec2 lightDelta = point - vec2(-0.07, -0.09);
+  float highlight = exp(-dot(lightDelta, lightDelta) * 65.0) * 0.22;
+  color = mix(color, vec3(1.0), (highlight + edge * 0.3) * fill);
+  return finish(color, fill + edge + glow);
 }
 
 void main() {

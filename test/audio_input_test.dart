@@ -98,6 +98,57 @@ void main() {
     expect(() => controller.addBytes([0, 0]), throwsStateError);
   });
 
+  test(
+    'controller resamples split PCM, base64, and sample rate switches',
+    () async {
+      final controller = ReactiveAudioController(
+        format: const AudioFormat(
+          encoding: AudioEncoding.pcm16,
+          sampleRate: 16000,
+        ),
+        sampleRate: 48000,
+      );
+      final received = <double>[];
+      final subscription = controller.stream.listen(received.addAll);
+      expect(controller.sampleRate, 48000);
+      controller.addBytes([0]);
+      controller.addBase64(base64Encode([0, 0, 96]));
+      // Old segment tail is flushed before starting the new source rate.
+      controller.addSamples([-1, 0], sourceSampleRate: 24000);
+      controller.flush();
+      await Future<void>.delayed(Duration.zero);
+      expect(received, [0, 0.25, 0.5, 0.75, 0.75, 0.75, -1, -0.5, 0, 0]);
+      received.clear();
+      controller.addBytes([255], sourceSampleRate: 16000);
+      controller.addBytes([0, 64], sourceSampleRate: 48000);
+      controller.addSamples([1], sourceSampleRate: 16000);
+      controller.resetDecoder();
+      controller.flush();
+      await controller.close();
+      expect(received, [0.5, 1]);
+      expect(() => controller.flush(), throwsStateError);
+      await subscription.cancel();
+    },
+  );
+
+  test('controller close flushes pending samples', () async {
+    final controller = ReactiveAudioController(
+      format: const AudioFormat(
+        encoding: AudioEncoding.pcm16,
+        sampleRate: 16000,
+      ),
+      sampleRate: 48000,
+    );
+    final output = controller.stream.expand((chunk) => chunk).toList();
+    expect(
+      () => controller.addSamples([0], sourceSampleRate: 0),
+      throwsArgumentError,
+    );
+    controller.addSamples([0.5]);
+    await controller.close();
+    expect(await output, [0.5, 0.5, 0.5]);
+  });
+
   testWidgets('controller drives a voice-chat visualizer directly', (
     tester,
   ) async {
