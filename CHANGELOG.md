@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.3
 
 * Add `VoiceVisualizerStyle.scale` to resize every Canvas and GPU style around
   its center without changing widget layout bounds.

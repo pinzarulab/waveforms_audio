@@ -11,7 +11,7 @@ Requires **Flutter 3.47.0 or newer** and **Dart 3.13.0 or newer** within Dart 3.
 
 ```yaml
 dependencies:
-  waveforms_audio: ^0.2.1
+  waveforms_audio: ^0.2.3
 ```
 
 Run `flutter pub get`, then import:
