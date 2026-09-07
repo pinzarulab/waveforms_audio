@@ -6,11 +6,18 @@ import 'audio_format.dart';
 /// Incrementally converts arbitrarily chunked raw PCM into normalized mono
 /// samples. Partial interleaved frames are retained for the next call.
 class AudioDecoder {
+  /// Fixed source encoding, byte order, and channel layout.
   final AudioFormat format;
   Uint8List _remainder = Uint8List(0);
 
+  /// Creates a decoder for [format]. Use one instance per independent source.
   AudioDecoder(this.format);
 
+  /// Decodes complete frames from [bytes], retaining incomplete trailing bytes.
+  ///
+  /// Returns normalized mono Float32 samples; may be empty. Channel selection
+  /// or downmixing follows [format]. Nonfinite values become zero and finite
+  /// values are clamped to -1–1. No resampling is performed.
   Float32List addBytes(List<int> bytes) {
     if (bytes.isEmpty && _remainder.isEmpty) return Float32List(0);
     final input = Uint8List(_remainder.length + bytes.length)
@@ -41,7 +48,10 @@ class AudioDecoder {
     return output;
   }
 
-  /// Accepts plain base64 or a `data:*;base64,...` payload.
+  /// Accepts plain base64 or a `data:*;base64,...` [payload].
+  ///
+  /// Returns normalized mono samples using [addBytes], retaining partial frames.
+  /// Invalid base64 throws [FormatException].
   Float32List addBase64(String payload) {
     final separator = payload.indexOf(',');
     final encoded = payload.startsWith('data:') && separator >= 0
@@ -50,6 +60,7 @@ class AudioDecoder {
     return addBytes(base64Decode(encoded));
   }
 
+  /// Discards retained partial frame bytes before a new independent segment.
   void reset() => _remainder = Uint8List(0);
 
   double _sample(ByteData data, int offset) {

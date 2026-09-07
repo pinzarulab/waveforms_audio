@@ -1,84 +1,264 @@
 # Waveforms Audio
 
-Frequency-reactive Flutter visualizers for voice chat, assistants, music, and
-classic waveform views. Runtime code depends only on Flutter.
+Flutter audio visualizers for voice chat, assistants, music, and waveform previews.
+The package turns PCM samples into animated shapes. Your app supplies the audio;
+recording, playback, microphone permissions, and compressed audio decoding stay in
+your app or audio SDK. Runtime code depends only on Flutter.
 
-## Voice chat from API bytes
+## Install
 
-Describe the uncompressed PCM once. The controller decodes arbitrary byte chunk
-boundaries, normalizes samples, and exposes the stream used by the visualizer.
+Requires **Flutter 3.47.0 or newer** and **Dart 3.13.0 or newer** within Dart 3.x.
+
+```yaml
+dependencies:
+  waveforms_audio: ^0.2.1
+```
+
+Run `flutter pub get`, then import:
 
 ```dart
-import 'dart:typed_data';
+import 'package:waveforms_audio/waveforms_audio.dart';
+```
+
+## Choose a widget
+
+| Widget | Use it for | Input |
+| --- | --- | --- |
+| `VoiceChatVisualizer` | Calls and AI voice interfaces, with speaker colors | Controller, or mono PCM stream + rate |
+| `ReactiveAudioVisualizer` | Frequency-driven visuals with FFT and silence controls | Controller, or mono PCM stream + rate |
+| `AudioVisualizer` | Prepared waveform snapshots | `AudioData` |
+| `LiveAudioVisualizer` | Scrolling amplitude history | Mono PCM stream; one peak per chunk |
+
+## Quick start: audio from an API
+
+Flow: **audio source → controller → widget**. Create the controller once, outside
+`build()`. Describe the actual source format; this example expects **24 kHz, mono,
+signed PCM16, little-endian**, without a WAV or other container header.
+
+```dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:waveforms_audio/waveforms_audio.dart';
 
+class ApiVoiceView extends StatefulWidget {
+  // Supply a stable stream from your audio SDK or WebSocket.
+  const ApiVoiceView({super.key, required this.pcmStream});
+
+  final Stream<List<int>> pcmStream;
+
+  @override
+  State<ApiVoiceView> createState() => _ApiVoiceViewState();
+}
+
+class _ApiVoiceViewState extends State<ApiVoiceView> {
+  late final ReactiveAudioController audio;
+  StreamSubscription<List<int>>? input;
+
+  @override
+  void initState() {
+    super.initState();
+    audio = ReactiveAudioController(
+      format: const AudioFormat(
+        encoding: AudioEncoding.pcm16,
+        sampleRate: 24000,
+      ),
+    );
+    // Attach the visualizer before forwarding input to the broadcast controller.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      input = widget.pcmStream.listen(
+        audio.addBytes,
+        onError: (Object error, StackTrace stack) => audio.addError(error, stack),
+        onDone: audio.flush,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => VoiceChatVisualizer(
+    controller: audio,
+    speaker: VoiceChatSpeaker.remote,
+    style: const VoiceVisualizerStyle.ribbon(
+      colors: [Colors.blue, Colors.cyan, Colors.purple],
+    ),
+    onError: (error, stack) => debugPrint('Audio input failed: $error'),
+  );
+
+  @override
+  void dispose() {
+    final subscription = input;
+    if (subscription != null) unawaited(subscription.cancel());
+    unawaited(audio.dispose());
+    super.dispose();
+  }
+}
+```
+
+Mount it with `ApiVoiceView(pcmStream: yourPcmStream)` inside your Flutter app.
+Keep that stream stable for the lifetime of this example, or give the view a new
+key when replacing the source. Start live audio after the view subscribes: neither
+the controller nor a broadcast input replays earlier events. A visualizer manages
+its own subscription but **does not dispose a controller you supplied**.
+
+Feed remote/AI PCM at playback time so the animation follows what the user hears.
+MP3, AAC, Opus, and container files must first be decoded to headerless PCM.
+
+## Audio formats and input functions
+
+### `AudioFormat`
+
+| Parameter/property | Default | Meaning |
+| --- | --- | --- |
+| `encoding` | Required | `AudioEncoding.pcm16`, `.pcm24`, or `.float32` |
+| `sampleRate` | Required | Source samples/second, at least 8000 Hz |
+| `channels` | `1` | Positive number of interleaved channels |
+| `endian` | `Endian.little` | Sample byte order; import `dart:typed_data` for `Endian.big` |
+| `channel` | `null` | Zero-based channel to select; null averages all channels to mono |
+| `bytesPerSample` | Computed | 2, 3, or 4 bytes per channel sample |
+| `bytesPerFrame` | Computed | `bytesPerSample * channels` |
+
+For stereo input use `channels: 2`; `channel: 1` selects the right channel.
+The channel index must be less than `channels`. Decoding clamps finite values to
+-1–1 and replaces nonfinite Float32 values with zero.
+
+### `ReactiveAudioController`
+
+Constructor: `ReactiveAudioController({required format, sampleRate})`.
+`format` describes source PCM; optional `sampleRate` fixes the **output** rate and
+defaults to `format.sampleRate`. Rates must be positive; reactive widgets require
+at least 8000 Hz. Encoding and channel layout remain fixed for the controller.
+
+| Member | Behavior |
+| --- | --- |
+| `format` | Default source format |
+| `sampleRate` | Output sample rate used by visualizers |
+| `stream` | Asynchronous broadcast `Stream<List<double>>` of normalized mono PCM; no replay |
+| `isClosed` | Whether input is closed |
+| `addBytes(List<int> bytes, {int? sourceSampleRate})` | Decode raw PCM and resample if necessary; retains split frames between chunks |
+| `addBase64(String payload, {int? sourceSampleRate})` | Same input path for plain base64 or `data:*;base64,...`; invalid base64 throws `FormatException` |
+| `addSamples(Iterable<num> samples, {int? sourceSampleRate})` | Already-mono samples; clamp to -1–1, replace NaN/infinity with zero, then resample |
+| `addError(Object error, [StackTrace? stackTrace])` | Forward an error without closing or resetting input |
+| `flush()` | Emit the pending resampler tail, reset interpolation, discard partial byte frames |
+| `resetDecoder()` | Discard both partial byte frames and resampler history without emitting a tail |
+| `close()` | Flush, then close the output stream; returns `Future<void>` |
+| `dispose()` | Alias for `close()` |
+
+Add methods and `flush()` throw `StateError` after closure. Invalid source rates
+throw `ArgumentError`. Stop/cancel upstream input before disposing. Closing can
+wait for a paused listener to resume; the controller cannot be reopened.
+
+### Resampling and segment boundaries
+
+```dart
 final audio = ReactiveAudioController(
   format: const AudioFormat(
     encoding: AudioEncoding.pcm16,
-    sampleRate: 48000,
-    channels: 1,
-    endian: Endian.little,
+    sampleRate: 24000,
   ),
+  sampleRate: 48000, // Fixed output rate.
 );
 
-// Uint8List or List<int> from a WebSocket, HTTP stream, SDK, or audio callback.
-apiAudioBytes.listen(audio.addBytes);
-
-VoiceChatVisualizer(
-  controller: audio,
-  speaker: VoiceChatSpeaker.remote,
-  style: const VoiceVisualizerStyle.bars(
-    colors: [Colors.red, Colors.orange],
-    inactiveColor: null,
-    barCount: 24,
-    spacing: 3,
-    cornerRadius: 8,
-    glow: 0.25,
-  ),
-);
-```
-
-Call `audio.dispose()` when the owning screen or call ends.
-
-`AudioFormat` supports:
-
-- Signed PCM16 and PCM24.
-- Float32 PCM.
-- Little- and big-endian bytes.
-- Interleaved mono or multichannel audio.
-- Automatic multichannel averaging, or one channel selected with `channel`.
-
-`ReactiveAudioController.addBase64` accepts plain base64 and base64 data URLs.
-`addSamples` accepts already-normalized mono samples and clamps them to -1–1.
-
-Set a fixed output rate with `ReactiveAudioController(format: sourceFormat,
-sampleRate: 48000)`. The format describes the input PCM; `controller.sampleRate`
-and its stream use the output rate. Override the input rate per chunk when an API
-switches rates (encoding and channel layout still follow `format`):
-
-```dart
-audio.addBytes(pcm16Bytes, sourceSampleRate: 16000);
+// Examples: choose the input form provided by your source.
+audio.addBytes(pcmBytes, sourceSampleRate: 16000);
 audio.addBase64(base64Pcm, sourceSampleRate: 24000);
 audio.addSamples(monoSamples, sourceSampleRate: 44100);
+audio.flush(); // End of an utterance/independent segment.
 ```
 
-Omitting `sourceSampleRate` uses `format.sampleRate`. Streaming linear
-interpolation preserves timing across arbitrary chunks. `flush()` emits the
-pending tail at an utterance boundary; `close()` also flushes. Changing source
-rate flushes the old tail and discards incomplete PCM frames. `resetDecoder()`
-discards both decoder and resampler state. The exported `PcmResampler` also works
-independently. It targets visualization and does not apply an anti-aliasing filter.
+`sourceSampleRate` defaults to `format.sampleRate` **on each call**; an override
+is not sticky. Rate changes flush the previous segment and discard incomplete
+PCM frames. Keep chunks of one continuous source at the same rate. Call `flush()`
+at an utterance boundary, or `resetDecoder()` to drop unfinished audio. Output
+chunk sizes can differ from input sizes; an input chunk may produce no output.
 
-MP3, AAC, Opus, and container formats are compressed. Decode them in the host
-application or playback SDK, then feed their PCM output to this package. Send
-remote or AI PCM when it is played, rather than when the whole response first
-arrives.
+The lightweight linear resampler preserves timing across chunks, including
+16/24/44.1/48 kHz conversions. It is intended for visualization and does not apply
+an anti-aliasing filter for high-fidelity downsampling.
 
-## Local and remote speakers
+### Low-level adapters
 
-The default local palette is blue–cyan. The default remote or AI palette is
-red–orange. Changing `speaker` animates between palettes.
+These exported helpers work without widgets or a controller.
+
+| API | Parameters and result |
+| --- | --- |
+| `AudioDecoder(AudioFormat format)` | Fixed PCM format, exposed as `format`; one decoder per independent source |
+| `AudioDecoder.addBytes(List<int> bytes)` | Complete frames → normalized mono `Float32List`; retains incomplete trailing bytes |
+| `AudioDecoder.addBase64(String payload)` | Plain base64/data URL → same decoded output; invalid base64 throws `FormatException` |
+| `AudioDecoder.reset()` | Discard partial frame bytes; does not change format |
+| `Pcm16Decoder()` | Simple mono PCM16 little-endian decoder; no container headers or stereo |
+| `Pcm16Decoder.addBytes(Uint8List bytes)` | Signed normalized `List<double>`; retains one odd trailing byte. Create a new decoder to reset |
+| `PcmResampler({required int sourceSampleRate, required int targetSampleRate})` | Fixed positive input/output Hz; exposed as properties; invalid rates throw `ArgumentError` |
+| `PcmResampler.addSamples(List<double> samples)` | Finite normalized mono PCM → resampled `Float32List`; preserves phase, empty input leaves state intact |
+| `PcmResampler.flush()` | Extend the final sample through its remaining duration, return the tail, then reset |
+| `PcmResampler.reset()` | Drop interpolation history and pending tail |
+
+`AudioDecoder` and `Pcm16Decoder` do not resample. `PcmResampler` does not clamp,
+decode, or sanitize its input; use the controller when those steps are needed.
+
+## Reactive widget parameters
+
+Both widgets accept **either** `controller` **or** `audioStream` + `sampleRate`.
+For direct streams, samples must be normalized mono PCM, not FFT bins or peaks.
+The rate must match the supplied samples; it is unrelated to screen refresh rate.
+
+```dart
+ReactiveAudioVisualizer(
+  audioStream: monoPcmStream, // Stream<List<double>>
+  sampleRate: 48000,
+  style: const VoiceVisualizerStyle.wave(),
+  motionPreset: AudioMotionPreset.music,
+);
+```
+
+### Shared parameters
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `key` | `null` | Standard Flutter widget identity key |
+| `controller` | `null` | Format-aware input; caller retains ownership |
+| `audioStream` | `null` | Direct normalized mono input; widget owns only its subscription |
+| `sampleRate` | `null` | Required for direct streams, at least 8000 Hz; controller rate takes precedence |
+| `size` | `Size(double.infinity, 280)` | Requested logical size; parent must bound width |
+| `style` | `VoiceVisualizerStyle.orb()` | Shape and appearance |
+| `renderer` | `VoiceVisualizerRenderer.auto` | GPU preference with Canvas fallback |
+| `motionPreset` | `AudioMotionPreset.voice` | Tuning when `motion` is absent |
+| `motion` | `null` | Complete `AudioMotionSettings` override; takes precedence over the preset |
+| `onVoiceActivity` | `null` | `void Function(double)` receiving 0–1 activity on audio input and zero on settling |
+| `onError` | `null` | `void Function(Object, StackTrace)` for stream errors; otherwise reported via `FlutterError.reportError` |
+
+Voice activity is a heuristic from audio level and voice-band energy, not a
+probability from a speech-recognition model or a speaker identity detector.
+System reduced-motion settings disable continuous deformation and speaker-color
+animation while preserving incoming audio state.
+
+### `ReactiveAudioVisualizer` extras
+
+| Parameter/property | Default | Meaning |
+| --- | --- | --- |
+| `fftSize` | `2048` | Rolling sample window; power of two between 256 and 8192 |
+| `bandCount` | `32` | Logarithmic analysis bands, 3–128; independent of visible bar count |
+| `silenceDuration` | `260 ms` | Positive gap without audio before a nonzero level starts settling |
+| `effectiveStream` | Computed | Controller stream or direct input stream |
+| `effectiveSampleRate` | Computed | Controller output rate or direct input rate |
+
+Analysis spans approximately 60 Hz to the smaller of 16 kHz and half the sample
+rate. Larger FFT windows improve frequency resolution but increase work.
+Replacing the source or analysis settings resets analysis; the widget replaces
+its stream subscription when the source changes.
+
+### `VoiceChatVisualizer` extras
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `speaker` | Required | `VoiceChatSpeaker.local` or `.remote`; selected by your application |
+| `localColors` | Blue–cyan | Optional nonempty list; speaker animation uses first and last colors |
+| `remoteColors` | Red–orange | Optional nonempty list; speaker animation uses first and last colors |
+| `speakerTransition` | `280 ms` | Non-negative color transition duration; zero changes immediately |
+
+Explicit `style.colors` overrides speaker palettes. For three/four-stop gradients,
+set `style.colors`. `VoiceChatSpeakerColors` exposes the default palette through
+`VoiceChatSpeaker.local.colors` and `.remote.colors`. Changing `speaker` does not
+switch audio streams: your app chooses the appropriate controller/source.
 
 ```dart
 VoiceChatVisualizer(
@@ -86,145 +266,185 @@ VoiceChatVisualizer(
   speaker: isRemoteSpeaking
       ? VoiceChatSpeaker.remote
       : VoiceChatSpeaker.local,
-  localColors: const [Color(0xFF2979FF), Color(0xFF39E9FF)],
-  remoteColors: const [Color(0xFFFF453A), Color(0xFFFFAA33)],
-  style: const VoiceVisualizerStyle.liquidOrb(),
-  onVoiceActivity: (probability) {
-    // Normalized 0–1 estimate derived from level and voice-band energy.
-  },
+  localColors: const [Colors.blue, Colors.cyan],
+  remoteColors: const [Colors.red, Colors.orange],
+  style: const VoiceVisualizerStyle.halo(),
 );
 ```
 
-The app selects the speaker from call state, active-speaker events, or playback
-state. Frequency analysis does not identify a person. For simultaneous speakers,
-render one visualizer per feed, or choose which feed controls a shared visualizer.
+This wrapper uses the reactive widget's default FFT size, band count, and silence
+timeout. Use `ReactiveAudioVisualizer` when you need to tune those values.
+For simultaneous speakers, render one visualizer per feed or choose one feed to
+drive a shared widget.
 
-## Normalized PCM streams
+## Styles and their parameters
 
-Applications that already produce mono samples can skip the controller:
+`VoiceVisualizerStyle` holds visual settings. Named constructors choose defaults;
+the generic constructor and `copyWith()` expose every field. Treat supplied color
+lists as immutable. Equality compares all fields and color contents.
+
+### All style fields
+
+| Field | Generic constructor default | Range / behavior |
+| --- | --- | --- |
+| `kind` | `.orb` | A `VoiceVisualizerKind` value from the table below |
+| `colors` | `[]` | Empty selects widget defaults; one is solid; multiple are evenly spaced stops |
+| `inactiveColor` | `null` | Null retains active colors in silence; otherwise blend from this resting color |
+| `barCount` | `32` | 3–128; base count for count-based styles |
+| `spacing` | `3` | Non-negative logical pixels between bars; reduced if needed to fit |
+| `cornerRadius` | `8` | Non-negative logical pixels; bar painters cap at half bar width |
+| `glow` | `0.25` | 0–1; zero disables optional glow |
+| `density` | `1` | Greater than 0, at most 3; scales detail/count with style-specific caps |
+| `symmetric` | `true` | Mirror frequency sampling where supported; wave also adds reflected curves |
+| `direction` | `.both` | `VoiceVisualizerDirection.up`, `.down`, `.both`, or `.radial` |
+
+Fields apply where the selected shape supports them. Bars, wave, dots, capsules,
+and minimal line interpret direction; radial shapes keep radial geometry. Ribbon
+and mirror spectrum retain their own layouts. Spacing/corner radius do not reshape
+fluid effects. Halo has 12–192 rays and bloom 6–12 lobes after density/capping;
+fixed wave/ribbon layers and some shader effects do not use `barCount`.
+
+### Named constructors and defaults
+
+Every named constructor accepts `colors`, `inactiveColor`, `glow`, `density`, and
+`symmetric`. The table shows **all remaining exposed parameters** and any changed
+common defaults. Values not listed use `density: 1`, `symmetric: true`, empty
+colors, and no inactive color. Constructor names also name the `VoiceVisualizerKind`
+values.
+
+| Constructor | Appearance | Glow | Other exposed parameters / changed defaults |
+| --- | --- | --- | --- |
+| `.orb()` | Layered radial orb | `0.3` | None |
+| `.wave()` | Smooth layered waveform | `0.2` | `direction: .both` |
+| `.bars()` | Rounded centered spectrum | `0.2` | `barCount: 24`, `spacing: 3`, `cornerRadius: 8`, `symmetric: false`, `direction: .both` |
+| `.upwardBars()` | Bars rising from a lower baseline | `0.2` | `barCount: 24`, `spacing: 3`, `cornerRadius: 8`, `symmetric: false`, `direction: .up` |
+| `.voiceBars()` | Compact voice-focused pills | `0.25` | `barCount: 5`, `spacing: 5`, `cornerRadius: 12`, `direction: .both` |
+| `.halo()` | Rounded radial rays and an inner ring | `0.3` | `barCount: 64`, `spacing: 2`, `cornerRadius: 8`, `direction: .radial` |
+| `.mirrorSpectrum()` | Bars with a separated fading reflection | `0.22` | `barCount: 32`, `spacing: 3`, `cornerRadius: 8`, `direction: .both` |
+| `.ribbon()` | Broad flowing strands | `0.28` | `direction: .both` |
+| `.liquidOrb()` | Fluid orb membranes | `0.45` | `density: 1.2` |
+| `.pulseRings()` | Expanding rings with a central core | `0.35` | None |
+| `.dotSpectrum()` | Frequency dots and trails | `0.35` | `barCount: 28`, `spacing: 5`, `symmetric: false`, `direction: .up` |
+| `.capsuleBars()` | Energy-filled tracks | `0.18` | `barCount: 20`, `spacing: 4`, `cornerRadius: 99`, `symmetric: false`, `direction: .up` |
+| `.voiceBloom()` | Soft continuous petals | `0.48` | `barCount: 24`, `spacing: 2`, `direction: .radial` |
+| `.minimalLine()` | Compact waveform line | `0.12` | `symmetric: false`, `direction: .both` |
+
+`copyWith({kind, colors, inactiveColor, clearInactiveColor, barCount, spacing,
+cornerRadius, glow, density, symmetric, direction})` preserves omitted/null values.
+`clearInactiveColor: true` removes the resting color even if an `inactiveColor` is
+also supplied. Changing `kind` preserves existing configuration; it does not apply
+the new kind's named-constructor defaults.
 
 ```dart
-ReactiveAudioVisualizer(
-  audioStream: monoPcmStream, // Stream<List<double>>, signed -1–1 samples
-  sampleRate: 48000,
-  style: const VoiceVisualizerStyle.ribbon(
-    colors: [Color(0xFF72F5D1), Color(0xFF6B8CFF)],
-  ),
-  motionPreset: AudioMotionPreset.voice,
-);
+final style = const VoiceVisualizerStyle.bars(
+  colors: [Colors.blue, Colors.cyan, Colors.purple, Colors.pink],
+  inactiveColor: Colors.grey,
+).copyWith(barCount: 40, spacing: 2, clearInactiveColor: true);
 ```
 
-The sample rate must match the audio source. It is unrelated to display refresh
-rate.
+## Motion controls
 
-## Natural motion
+`AudioMotionPreset` provides `.voice`, `.music`, `.ambient`, and `.energetic`.
+Use `AudioMotionSettings.preset(preset)` as a starting point, then `copyWith()` to
+change individual settings. Supplying `motion` replaces the widget preset entirely.
 
-The rolling FFT uses logarithmic frequency bands. Motion settings provide:
+| `AudioMotionSettings` parameter | Explicit constructor default | Meaning |
+| --- | --- | --- |
+| `bassAttack`, `bassRelease` | Required | Positive rise/fall durations for bass |
+| `midsAttack`, `midsRelease` | Required | Positive rise/fall durations for midrange |
+| `trebleAttack`, `trebleRelease` | Required | Positive rise/fall durations for treble |
+| `levelAttack`, `levelRelease` | Required | Positive rise/fall durations for overall level |
+| `peakHold` | `100 ms` | Non-negative time to hold a peak |
+| `peakFalloff` | `0.85` | Positive normalized units/second after hold |
+| `noiseGate` | `0.006` | RMS threshold in 0–1, excluding 1; quieter input treated as silence |
+| `adaptiveGain` | `true` | Adapt sensitivity to source level |
+| `idleBreathing` | `0.025` | Idle movement in 0–1; zero permits a motionless rest |
 
-- Fast bass attack, slower voice-band movement, and soft treble decay.
-- Adaptive gain for quiet and loud microphones.
-- Configurable RMS noise gate.
-- Peak hold with gradual falloff.
-- A 0–1 voice-activity estimate.
-- Configurable idle breathing. Set `idleBreathing: 0` for a motionless rest.
+Use positive attack/release durations for stable interpolation. `copyWith()`
+accepts every constructor field; null preserves its value. Settings support value
+equality. Preset durations below are milliseconds, shown as attack/release pairs.
 
-Choose `AudioMotionPreset.voice`, `.music`, `.ambient`, or `.energetic`.
-Override any value when needed:
+| Preset | Bass | Mids | Treble | Level | Peak hold / falloff | Gate | Adaptive gain | Idle |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `voice` | 28/220 | 52/290 | 85/390 | 42/310 | 100 / 0.85 | 0.007 | true | 0.018 |
+| `music` | 18/170 | 32/230 | 48/300 | 28/240 | 100 / 0.85 | 0.003 | false | 0.012 |
+| `ambient` | 110/650 | 150/800 | 210/950 | 130/800 | 100 / 0.85 | 0.002 | true | 0.055 |
+| `energetic` | 10/105 | 16/135 | 24/175 | 14/125 | 145 / 1.15 | 0.004 | true | 0.03 |
 
 ```dart
-final motion = AudioMotionSettings.preset(
-  AudioMotionPreset.voice,
-).copyWith(
+final motion = AudioMotionSettings.preset(AudioMotionPreset.voice).copyWith(
   noiseGate: 0.01,
   idleBreathing: 0,
   peakHold: const Duration(milliseconds: 140),
 );
 
-ReactiveAudioVisualizer(
-  controller: audio,
-  motion: motion,
-  style: const VoiceVisualizerStyle.minimalLine(),
-);
+ReactiveAudioVisualizer(controller: audio, motion: motion);
 ```
 
-System reduced-motion settings disable continuous deformation while preserving
-the current audio state.
+## Rendering and shader loading
 
-GPU palettes support one through four evenly spaced color stops, including
-intermediate colors. Longer palettes automatically use Canvas to preserve every
-stop, even when the shader renderer is requested. GPU and Canvas share palette
-interpolation; their effect geometry and lighting remain renderer-specific.
+| `VoiceVisualizerRenderer` | Behavior |
+| --- | --- |
+| `auto` | Use GPU for supported styles; Canvas otherwise |
+| `canvas` | Always draw with Canvas |
+| `fragmentShader` | Request GPU, retaining the same fallback rules |
 
-## GPU fragment shader
+GPU styles: **orb, wave, halo, ribbon, liquidOrb, pulseRings, voiceBloom**.
+Other styles use Canvas. While shaders load, when loading fails, or when a palette
+has more than four colors, widgets use Canvas. One through four GPU color stops
+retain intermediate colors. Geometry, lighting, and some style controls remain
+renderer-specific; outputs are not pixel-identical. Halo and bloom use a seamless
+spatial gradient rather than a discontinuous angular palette.
 
-The hybrid renderer sends fluid, radial, layered, and glow-heavy styles to one
-shared GPU fragment program. Audio decoding, FFT analysis, motion envelopes,
-uniform updates, and frame scheduling remain on the CPU. Simple geometric
-styles stay on Canvas, where shading every pixel would cost more than drawing
-the primitives directly.
+`Future<void> precacheWaveformsAudioShaders()` optionally loads the cached program
+before displaying a visualizer. Call after Flutter binding initialization. It has
+no arguments and propagates loading errors; widgets themselves handle failures by
+falling back to Canvas. Example optional warmup:
 
 ```dart
-// Optional: start this before opening the call screen.
-await precacheWaveformsAudioShaders();
-
-VoiceChatVisualizer(
-  controller: audio,
-  speaker: VoiceChatSpeaker.remote,
-  renderer: VoiceVisualizerRenderer.auto,
-  style: const VoiceVisualizerStyle.liquidOrb(
-    glow: 0.5,
-    density: 1.3,
-  ),
-);
+WidgetsFlutterBinding.ensureInitialized();
+try {
+  await precacheWaveformsAudioShaders();
+} catch (_) {
+  // Canvas remains available if this platform cannot load the shader.
+}
 ```
 
-Renderer modes:
+No extra shader declaration is needed in the consuming app. Audio decoding,
+analysis, envelope updates, and scheduling run on the CPU for both renderers.
 
-- `auto`, the default, uses a shader when the selected style supports it.
-- `canvas` always uses Flutter Canvas.
-- `fragmentShader` requests the shader backend and uses Canvas for styles
-  without a shader.
+## Classic waveform API
 
-Shader programs are cached. A visualizer reuses its `FragmentShader` between
-frames. While a program loads, or if the current platform cannot create it, the
-same style is drawn with its Canvas implementation.
+### `AudioData` and `AudioProcessor`
 
-GPU styles are `orb`, `wave`, `halo`, `ribbon`, `liquidOrb`, `pulseRings`, and
-`voiceBloom`. Bars, upward bars, voice bars, mirror spectrum, dot spectrum,
-capsule bars, and minimal line retain the Canvas renderer. All GPU styles have
-matching Canvas fallbacks.
-
-## Styles
-
-| Style object | Appearance |
+| API | Behavior |
 | --- | --- |
-| `VoiceVisualizerStyle.orb` | Layered sphere shaped by bass, mids, and treble. |
-| `.liquidOrb` | GPU fluid membrane with Canvas fallback. |
-| `.wave` | Symmetric flowing waveform. |
-| `.ribbon` | Layered strands with independent movement. |
-| `.bars` | Centered rounded frequency bars. |
-| `.upwardBars` | Bars fixed to a lower baseline. |
-| `.voiceBars` | Compact voice-focused pills. |
-| `.mirrorSpectrum` | Spectrum mirrored around the center. |
-| `.capsuleBars` | Inactive tracks filled by live energy. |
-| `.dotSpectrum` | Frequency dots with vertical trails. |
-| `.halo` | Segmented radial spectrum. |
-| `.pulseRings` | Expanding rings driven by peaks. |
-| `.voiceBloom` | Radial petals driven by voice activity. |
-| `.minimalLine` | A clean waveform for compact controls. |
+| `AudioData({required Iterable<double> samples, double maxAmplitude = 1.0})` | Copy samples into an immutable snapshot; does not normalize or clamp |
+| `AudioData.samples` | Unmodifiable list; changing the original input cannot bypass repainting |
+| `AudioData.maxAmplitude` | Original peak metadata; finite and non-negative, otherwise `ArgumentError` |
+| `AudioData.empty()` | Empty snapshot with default maximum amplitude 1 |
+| `AudioProcessor.extractPeaks(List<double> rawSamples, int bucketCount, {bool normalize = true})` | Largest absolute sample per bucket; optional scaling so largest peak is 1; returns `AudioData` |
 
-Every style object accepts a solid or gradient `colors` list, optional
-`inactiveColor`, glow, density, symmetry, and direction. Bar-based styles also
-accept bar count, spacing, and corner radius.
+Use finite samples. Empty input or nonpositive `bucketCount` returns empty data.
+The bucket count is capped to input length. `maxAmplitude` retains the original
+largest peak before normalization; extraction is for visual buckets, not PCM
+sample-rate conversion.
 
-`inactiveColor` defaults to null. Silence therefore keeps the main palette.
-Set a resting color explicitly to blend each element from that color as its
-frequency becomes active.
+### `AudioVisualizer`
 
-## Classic waveforms
-
-`AudioData` takes an immutable snapshot of its samples. Changing the source
-list after construction cannot silently bypass repainting.
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `key` | `null` | Standard widget identity |
+| `audioData` | Required | Snapshot with one sample per segment |
+| `size` | `Size(double.infinity, 200)` | Logical dimensions; bounded parent width required |
+| `type` | `VisualizerType.linear` | `.linear`, `.circular`, or `.oval` |
+| `color` | `Colors.blue` | Segment color |
+| `strokeWidth` | `2` | Positive logical-pixel thickness |
+| `spacing` | `2` | Non-negative gap for linear bars; ignored for radial layouts |
+| `animatePulsate` | `false` | Loop a gentle amplitude pulse |
+| `animateRotation` | `false` | Rotate circular/oval layouts; ignored for linear |
+| `animationDuration` | `2 seconds` | Positive duration for one complete loop |
+| `transitionDuration` | `100 ms` | Non-negative amplitude easing; zero updates immediately |
 
 ```dart
 AudioVisualizer(
@@ -236,22 +456,71 @@ AudioVisualizer(
 );
 ```
 
-`LiveAudioVisualizer` provides a scrolling amplitude history. Classic canvas
-painters are implementation details; the main library exports widgets, models,
-controllers, style objects, and audio adapters.
+New data eases from the displayed snapshot. A changed sample count, zero transition
+duration, or system reduced motion causes an immediate update. Reduced motion
+also stops pulse and rotation loops.
 
-## Demo and checks
+### `LiveAudioVisualizer`
+
+Accepts the same `key`, `size`, `type`, `strokeWidth`, `spacing`, `animatePulsate`,
+`animateRotation`, `animationDuration`, and `transitionDuration` parameters/defaults
+as `AudioVisualizer`, with these differences:
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `audioStream` | Required | `Stream<List<double>>`; replaces `audioData` |
+| `windowSize` | `100` | Positive number of recent chunk peaks to display |
+| `color` | `Colors.redAccent` | Segment color |
+
+```dart
+LiveAudioVisualizer(
+  audioStream: monoPcmStream,
+  windowSize: 80,
+  type: VisualizerType.linear,
+);
+```
+
+Each nonempty chunk contributes its largest finite absolute sample, clamped to
+0–1. History starts with zeros; its duration depends on **chunk arrival cadence**.
+Changing the stream replaces the subscription while retaining history. Resizing
+trims old buckets or prepends zeros. The widget cancels its subscription on dispose
+but does not close your source. Handle input errors upstream: this widget has no
+`onError` parameter.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| Nothing reacts | Widget subscribed before audio arrived; input is PCM, not compressed/base64 text passed as bytes |
+| Frequency response looks wrong | Source rate, encoding, endian, and channel layout match the real input |
+| Animation leads the sound | Forward PCM when played rather than when a complete API response downloads |
+| Speaker colors do not change | Explicit `style.colors` overrides speaker palettes |
+| More than four colors use Canvas | Intentional fallback to preserve every stop |
+| Style option has no visible effect | Check that the selected shape/renderer uses that option |
+| Movement remains in silence | Set `motion.idleBreathing` to zero |
+| Unbounded width error | Place the widget in a bounded parent, or set a finite `size.width` |
+
+## Example, API docs, and checks
 
 ```sh
 cd example
 flutter run
 ```
 
-The example can use a real microphone or a synthetic bass, voice, or treble
-signal. Microphone audio stays in memory and is not uploaded or saved.
+The example offers microphone input and synthetic signals. Microphone audio stays
+in memory and is not uploaded or saved by the example.
+
+Public API is exported from `package:waveforms_audio/waveforms_audio.dart`.
+Canvas painters and analysis internals under `src/` are implementation details.
+Dart documentation comments provide IDE help for constructors, fields, and methods.
+
+From the package root:
 
 ```sh
 flutter analyze
 flutter test
-cd example && flutter test
+(cd example && flutter test)
+dart doc
 ```
+
+`dart doc` writes browsable API documentation under `doc/api/`.

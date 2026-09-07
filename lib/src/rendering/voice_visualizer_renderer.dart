@@ -7,6 +7,7 @@ enum VoiceVisualizerRenderer {
   /// Always uses Flutter Canvas primitives.
   canvas,
 
-  /// Requests the shader backend. Unsupported styles still use Canvas.
+  /// Requests the shader backend. Unsupported styles, palettes over four stops,
+  /// and shader loading failures still use Canvas.
   fragmentShader,
 }

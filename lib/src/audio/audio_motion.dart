@@ -1,16 +1,54 @@
 /// Tuned motion profiles for common audio experiences.
-enum AudioMotionPreset { voice, music, ambient, energetic }
+enum AudioMotionPreset {
+  /// Speech-oriented response with adaptive gain and restrained idle movement.
+  voice,
+
+  /// Faster musical response without adaptive gain.
+  music,
+
+  /// Slow attacks, long releases, and gentle idle breathing.
+  ambient,
+
+  /// Fast attacks and releases with more persistent peaks.
+  energetic,
+}
 
 /// Frequency-specific motion, gain, voice activity, and idle behavior.
 class AudioMotionSettings {
+  /// Attack time for bass energy; shorter durations respond faster.
+  /// Supply a positive duration for stable envelope interpolation.
   final Duration bassAttack;
+
+  /// Release time for bass energy; shorter durations respond faster.
+  /// Supply a positive duration for stable envelope interpolation.
   final Duration bassRelease;
+
+  /// Attack time for midrange energy; shorter durations respond faster.
+  /// Supply a positive duration for stable envelope interpolation.
   final Duration midsAttack;
+
+  /// Release time for midrange energy; shorter durations respond faster.
+  /// Supply a positive duration for stable envelope interpolation.
   final Duration midsRelease;
+
+  /// Attack time for treble energy; shorter durations respond faster.
+  /// Supply a positive duration for stable envelope interpolation.
   final Duration trebleAttack;
+
+  /// Release time for treble energy; shorter durations respond faster.
+  /// Supply a positive duration for stable envelope interpolation.
   final Duration trebleRelease;
+
+  /// Attack time for overall audio level; shorter durations respond faster.
+  /// Supply a positive duration for stable envelope interpolation.
   final Duration levelAttack;
+
+  /// Release time for overall audio level; shorter durations respond faster.
+  /// Supply a positive duration for stable envelope interpolation.
   final Duration levelRelease;
+
+  /// How long the most recent peak is held; defaults to 100 ms.
+  /// Supply a non-negative duration.
   final Duration peakHold;
 
   /// Peak falloff in normalized units per second.
@@ -18,11 +56,18 @@ class AudioMotionSettings {
 
   /// RMS values below this threshold are treated as silence.
   final double noiseGate;
+
+  /// Whether analysis adapts sensitivity to the source level; defaults to true.
   final bool adaptiveGain;
 
   /// Motion retained during silence. Zero creates a motionless rest state.
   final double idleBreathing;
 
+  /// Creates explicit motion settings. All eight attack/release durations are required.
+  ///
+  /// [peakFalloff] must be positive, [noiseGate] in 0–1 excluding 1, and
+  /// [idleBreathing] in 0–1. Defaults: falloff 0.85/second, gate 0.006,
+  /// adaptive gain enabled, idle breathing 0.025, peak hold 100 ms.
   const AudioMotionSettings({
     required this.bassAttack,
     required this.bassRelease,
@@ -41,6 +86,7 @@ class AudioMotionSettings {
        assert(noiseGate >= 0 && noiseGate < 1),
        assert(idleBreathing >= 0 && idleBreathing <= 1);
 
+  /// Builds the tuning for [preset]. Use [copyWith] to customize individual values.
   factory AudioMotionSettings.preset(AudioMotionPreset preset) =>
       switch (preset) {
         AudioMotionPreset.voice => const AudioMotionSettings(
@@ -96,6 +142,8 @@ class AudioMotionSettings {
         ),
       };
 
+  /// Returns a new configuration with the supplied fields replaced.
+  /// Null arguments preserve their existing values; constraints match the constructor.
   AudioMotionSettings copyWith({
     Duration? bassAttack,
     Duration? bassRelease,

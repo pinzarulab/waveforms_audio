@@ -11,11 +11,12 @@ import 'pcm_resampler.dart';
 /// normalized mono samples with [addSamples]. Compressed MP3, AAC, and Opus
 /// must be decoded to PCM by the host application first.
 ///
-/// Input defaults to [format.sampleRate]. Each add method accepts an optional
+/// Input defaults to [AudioFormat.sampleRate]. Each add method accepts an optional
 /// `sourceSampleRate` override, retaining the encoding and channel layout in
 /// [format]. Output always uses [sampleRate]. A rate switch flushes the previous
 /// resampled tail and discards incomplete PCM frames.
 class ReactiveAudioController {
+  /// Default source PCM format. Encoding and channel layout remain fixed.
   final AudioFormat format;
   late final AudioDecoder _decoder = AudioDecoder(format);
   final StreamController<List<double>> _samples =
@@ -26,6 +27,11 @@ class ReactiveAudioController {
   int? _sourceSampleRate;
   PcmResampler? _resampler;
 
+  /// Creates a PCM input sink with an optional fixed output [sampleRate].
+  ///
+  /// The output rate defaults to [AudioFormat.sampleRate]; nonpositive values throw
+  /// [ArgumentError]. Reactive visualizers require an output rate of at least
+  /// 8000 Hz. Create once per source and dispose when its owner finishes.
   ReactiveAudioController({required this.format, int? sampleRate})
     : sampleRate = sampleRate ?? format.sampleRate {
     if (this.sampleRate <= 0) {
@@ -37,9 +43,18 @@ class ReactiveAudioController {
     }
   }
 
+  /// Asynchronous broadcast stream of normalized mono samples at [sampleRate].
+  /// Subscribe before feeding audio; events are not replayed to later listeners.
   Stream<List<double>> get stream => _samples.stream;
+
+  /// Whether input has been closed. Add methods and [flush] then throw [StateError].
   bool get isClosed => _samples.isClosed;
 
+  /// Decodes headerless PCM [bytes] and emits any complete resampled output.
+  ///
+  /// [sourceSampleRate] defaults to [AudioFormat.sampleRate] on each call. A different
+  /// rate flushes the old segment and discards partial PCM frames. Nonpositive
+  /// rates throw [ArgumentError]. Byte chunks may split interleaved frames.
   void addBytes(List<int> bytes, {int? sourceSampleRate}) {
     _checkOpen();
     _prepareInput(sourceSampleRate);
@@ -47,6 +62,10 @@ class ReactiveAudioController {
     _emit(samples);
   }
 
+  /// Accepts plain base64 PCM or a `data:*;base64,...` [payload].
+  ///
+  /// Uses the same [sourceSampleRate] rules as [addBytes]. Invalid base64 throws
+  /// [FormatException]; compressed audio must be decoded by the host first.
   void addBase64(String payload, {int? sourceSampleRate}) {
     _checkOpen();
     _prepareInput(sourceSampleRate);
@@ -54,6 +73,10 @@ class ReactiveAudioController {
     _emit(samples);
   }
 
+  /// Clamps normalized mono [samples] to -1–1 and replaces nonfinite values with zero.
+  ///
+  /// Uses the same [sourceSampleRate] rules as [addBytes]. These samples are
+  /// already mono; [format] channel selection and byte encoding do not apply.
   void addSamples(Iterable<num> samples, {int? sourceSampleRate}) {
     _checkOpen();
     _prepareInput(sourceSampleRate);
@@ -69,6 +92,8 @@ class ReactiveAudioController {
     _emit(normalized);
   }
 
+  /// Forwards [error] and an optional [stackTrace] to stream listeners.
+  /// Does not close the controller or reset decoder/resampler history.
   void addError(Object error, [StackTrace? stackTrace]) {
     _checkOpen();
     _samples.addError(error, stackTrace);
@@ -88,11 +113,17 @@ class ReactiveAudioController {
     _decoder.reset();
   }
 
+  /// Flushes the final resampler tail, then closes [stream].
+  ///
+  /// The returned future completes when the stream controller finishes closing;
+  /// a paused subscriber can delay completion. The caller must stop its upstream
+  /// producer first. The controller cannot be reopened.
   Future<void> close() {
     if (!isClosed) flush();
     return _samples.close();
   }
 
+  /// Alias for [close]; releases the controller after flushing its pending tail.
   Future<void> dispose() => close();
 
   void _prepareInput(int? sourceSampleRate) {

@@ -9,6 +9,10 @@ class AudioData {
   /// The maximum amplitude found in the original dataset before normalization.
   final double maxAmplitude;
 
+  /// Copies [samples] into an unmodifiable snapshot without normalizing them.
+  ///
+  /// [maxAmplitude] defaults to 1 and must be finite and non-negative, otherwise
+  /// throws [ArgumentError]. Keep sample values finite for predictable rendering.
   AudioData({required Iterable<double> samples, this.maxAmplitude = 1.0})
     : samples = UnmodifiableListView<double>(List<double>.of(samples)) {
     if (!maxAmplitude.isFinite || maxAmplitude < 0) {

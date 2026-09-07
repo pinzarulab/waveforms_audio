@@ -13,20 +13,59 @@ import 'shader_visualizer_surface.dart';
 
 /// Frequency-driven motion for normalized PCM or a format-aware controller.
 class ReactiveAudioVisualizer extends StatefulWidget {
+  /// Format-aware input, mutually exclusive with [audioStream].
+  /// The caller owns and disposes this controller; the widget only subscribes.
   final ReactiveAudioController? controller;
+
+  /// Normalized mono PCM chunks in -1–1, used with [sampleRate].
+  /// Mutually exclusive with [controller]. The widget manages its subscription.
   final Stream<List<double>>? audioStream;
+
+  /// Input samples per second for [audioStream]; at least 8000.
+  /// Ignored when [controller] supplies its own output rate.
   final int? sampleRate;
+
+  /// Rolling FFT window in samples. Defaults to 2048; power of two, 256–8192.
+  /// Larger windows improve frequency resolution at increased computation cost.
   final int fftSize;
+
+  /// Number of logarithmic analysis bands, 3–128; defaults to 32.
+  /// Independent of the style’s number of visible bars.
   final int bandCount;
+
+  /// Requested logical-pixel dimensions; defaults to full width and height 280.
+  /// Place in a parent with bounded width.
   final Size size;
+
+  /// Shape, palette, and geometry. Defaults to [VoiceVisualizerStyle.orb].
   final VoiceVisualizerStyle style;
+
+  /// Rendering preference; defaults to [VoiceVisualizerRenderer.auto].
+  /// Unsupported styles, unavailable shaders, and palettes over four stops use Canvas.
   final VoiceVisualizerRenderer renderer;
+
+  /// Motion profile used when [motion] is null. Defaults to voice.
   final AudioMotionPreset motionPreset;
+
+  /// Complete motion override. When provided, takes precedence over [motionPreset].
   final AudioMotionSettings? motion;
+
+  /// Gap without audio before a nonzero level starts settling; defaults to 260 ms.
+  /// Must be positive. Continuous idle breathing is controlled by [motion].
   final Duration silenceDuration;
+
+  /// Receives a normalized 0–1 voice-band activity estimate on audio input
+  /// and zero when the visualizer settles. This is not speaker identification.
   final ValueChanged<double>? onVoiceActivity;
+
+  /// Handles input stream errors after the visualizer starts settling.
+  /// If omitted, errors are reported through [FlutterError.reportError].
   final void Function(Object error, StackTrace stack)? onError;
 
+  /// Creates a reactive view from [controller], or [audioStream] and [sampleRate].
+  ///
+  /// [key] is the standard Flutter widget identity key. System reduced-motion
+  /// settings disable continuous animation while preserving incoming audio state.
   const ReactiveAudioVisualizer({
     super.key,
     this.controller,
@@ -52,8 +91,11 @@ class ReactiveAudioVisualizer extends StatefulWidget {
        ),
        assert(silenceDuration > Duration.zero);
 
+  /// The controller stream when present, otherwise [audioStream].
   Stream<List<double>> get effectiveStream =>
       controller?.stream ?? audioStream!;
+
+  /// The controller output rate when present, otherwise [sampleRate].
   int get effectiveSampleRate => controller?.sampleRate ?? sampleRate!;
 
   @override

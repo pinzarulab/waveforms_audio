@@ -1,5 +1,6 @@
 import '../models/audio_data.dart';
 
+/// Utilities for preparing static amplitude data for classic waveform widgets.
 class AudioProcessor {
   /// Downsamples a dense list of raw audio samples into a target number of buckets
   /// by finding the peak absolute value in each bucket.
@@ -7,6 +8,11 @@ class AudioProcessor {
   /// [rawSamples] is the input audio data (e.g. PCM float data from -1.0 to 1.0).
   /// [bucketCount] is the number of visual points you want to render.
   /// [normalize] if true, will scale the output samples so the highest peak is 1.0.
+  ///
+  /// Empty input or nonpositive [bucketCount] returns [AudioData.empty]. The
+  /// output count never exceeds the input length. [AudioData.maxAmplitude]
+  /// retains the largest absolute peak before normalization. Supply finite
+  /// samples; this utility does not sanitize nonfinite values.
   static AudioData extractPeaks(
     List<double> rawSamples,
     int bucketCount, {

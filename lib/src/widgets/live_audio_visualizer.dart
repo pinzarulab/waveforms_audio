@@ -5,19 +5,54 @@ import 'package:flutter/material.dart';
 import '../models/audio_data.dart';
 import 'audio_visualizer.dart';
 
+/// Displays a scrolling history of peak amplitudes from audio chunks.
+///
+/// Each nonempty chunk adds one bucket using its largest finite absolute sample,
+/// clamped to 0–1. History duration therefore depends on chunk arrival cadence,
+/// not the sample rate. The widget owns its stream subscription, not the source.
 class LiveAudioVisualizer extends StatefulWidget {
+  /// Required stream of normalized PCM samples. Empty chunks are ignored.
+  /// Handle source errors upstream; this widget has no error callback.
   final Stream<List<double>> audioStream;
+
+  /// Positive number of recent chunk peaks shown; defaults to 100.
+  /// New histories start with zero-filled buckets.
   final int windowSize; // Number of visual buckets to show on screen
+  /// Requested logical-pixel dimensions; defaults to full width and height 200.
+  /// The parent must provide bounded width.
   final Size size;
+
+  /// Waveform layout; defaults to [VisualizerType.linear].
   final VisualizerType type;
+
+  /// Segment color; defaults to [Colors.redAccent].
   final Color color;
+
+  /// Positive segment thickness in logical pixels; defaults to 2.
   final double strokeWidth;
+
+  /// Non-negative gap between linear bars in logical pixels; defaults to 2.
+  /// Circular and oval layouts do not use this value.
   final double spacing;
+
+  /// Whether to loop a gentle amplitude pulse; defaults to false.
   final bool animatePulsate;
+
+  /// Whether to rotate circular or oval layouts; defaults to false.
+  /// Ignored for linear layouts and when the system requests reduced motion.
   final bool animateRotation;
+
+  /// Positive duration of one pulse or rotation loop; defaults to two seconds.
   final Duration animationDuration;
+
+  /// Non-negative amplitude transition duration; defaults to 100 ms.
+  /// Use [Duration.zero] for immediate updates.
   final Duration transitionDuration;
 
+  /// Creates a scrolling waveform. [key] is the standard Flutter widget key.
+  ///
+  /// Changing [audioStream] replaces the subscription while retaining history.
+  /// Changing [windowSize] trims oldest buckets or prepends zeros.
   const LiveAudioVisualizer({
     super.key,
     required this.audioStream,

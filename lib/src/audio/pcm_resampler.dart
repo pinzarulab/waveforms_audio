@@ -6,11 +6,16 @@ import 'dart:typed_data';
 /// to extend the final sample through its remaining duration. This resampler
 /// is intended for visualization; it does not apply an anti-aliasing filter.
 class PcmResampler {
+  /// Positive input sample rate in Hz, fixed for this instance.
   final int sourceSampleRate;
+
+  /// Positive output sample rate in Hz, fixed for this instance.
   final int targetSampleRate;
   int _position = 0;
   double? _previous;
 
+  /// Creates a streaming converter between the given sample rates.
+  /// Throws [ArgumentError] if either rate is nonpositive.
   PcmResampler({
     required this.sourceSampleRate,
     required this.targetSampleRate,
@@ -20,6 +25,11 @@ class PcmResampler {
     }
   }
 
+  /// Interpolates normalized mono [samples], preserving phase across calls.
+  ///
+  /// Supply finite -1–1 values: this low-level helper does not sanitize input.
+  /// Empty input returns an empty list without changing state. Output can be
+  /// empty while waiting for enough input; call [flush] once a segment ends.
   Float32List addSamples(List<double> samples) {
     if (samples.isEmpty) return Float32List(0);
     final output = <double>[];

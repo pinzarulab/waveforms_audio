@@ -1,3 +1,8 @@
+/// Audio visualization widgets, PCM input adapters, and styling for Flutter.
+///
+/// Start with [ReactiveAudioController] and [VoiceChatVisualizer] for PCM audio,
+/// or [AudioVisualizer] and [AudioData] for prepared waveform snapshots.
+/// Recording, playback, and compressed audio decoding belong to the host app.
 library;
 
 export 'src/models/audio_data.dart';

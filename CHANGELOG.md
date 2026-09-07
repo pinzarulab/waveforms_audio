@@ -1,3 +1,10 @@
+## 0.2.1
+
+* Expand README with setup, lifecycle examples, and a full public API reference.
+* Document public Dart constructors, parameters, methods, defaults, constraints,
+  input formats, renderer fallbacks, and ownership behavior.
+* Clarify resampling boundaries, style-specific options, and speaker palettes.
+
 ## 0.2.0
 
 * Smooth wave and ribbon contours across frequency bands in both renderers.

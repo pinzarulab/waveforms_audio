@@ -6,6 +6,11 @@ import 'dart:typed_data';
 class Pcm16Decoder {
   int? _pendingByte;
 
+  /// Decodes complete samples from [bytes], retaining an odd trailing byte.
+  ///
+  /// Returns signed samples normalized by 32768; empty input produces no output.
+  /// Use a new instance to discard history, or `AudioDecoder` for reset support
+  /// and additional formats.
   List<double> addBytes(Uint8List bytes) {
     final samples = <double>[];
     var index = 0;

@@ -7,16 +7,48 @@ import '../painters/linear_waveform_painter.dart';
 import '../painters/circular_waveform_painter.dart';
 import '../painters/oval_waveform_painter.dart';
 
-enum VisualizerType { linear, circular, oval }
+/// Layouts supported by classic waveform widgets.
+enum VisualizerType {
+  /// Vertical segments arranged horizontally.
+  linear,
 
+  /// Segments arranged around a circle.
+  circular,
+
+  /// Segments arranged around an ellipse.
+  oval,
+}
+
+/// Draws a snapshot of waveform amplitudes, with optional transitions and loops.
+///
+/// Use [AudioData] directly or obtain a snapshot with `AudioProcessor.extractPeaks`.
+/// This widget does not subscribe to audio, record, or play sound.
 class AudioVisualizer extends StatefulWidget {
+  /// Required immutable waveform snapshot; one sample per visual segment.
   final AudioData audioData;
+
+  /// Requested logical-pixel dimensions; defaults to full width and height 200.
+  /// The parent must provide bounded width.
   final Size size;
+
+  /// Waveform layout; defaults to [VisualizerType.linear].
   final VisualizerType type;
+
+  /// Segment color; defaults to [Colors.blue].
   final Color color;
+
+  /// Positive segment thickness in logical pixels; defaults to 2.
   final double strokeWidth;
+
+  /// Non-negative gap between linear bars in logical pixels; defaults to 2.
+  /// Circular and oval layouts do not use this value.
   final double spacing;
+
+  /// Whether to loop a gentle amplitude pulse; defaults to false.
   final bool animatePulsate;
+
+  /// Whether to rotate circular or oval layouts; defaults to false.
+  /// Ignored for linear layouts and when the system requests reduced motion.
   final bool animateRotation;
 
   /// Duration of one complete pulse or rotation loop.
@@ -26,6 +58,11 @@ class AudioVisualizer extends StatefulWidget {
   /// Set to [Duration.zero] for immediate updates.
   final Duration transitionDuration;
 
+  /// Creates a classic waveform view.
+  ///
+  /// [key] is the standard Flutter widget identity key. [animationDuration] must
+  /// be positive and [transitionDuration] non-negative. Reduced motion disables
+  /// loops and displays new snapshots immediately.
   const AudioVisualizer({
     super.key,
     required this.audioData,
