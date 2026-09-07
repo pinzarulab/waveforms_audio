@@ -11,7 +11,7 @@ Requires **Flutter 3.47.0 or newer** and **Dart 3.13.0 or newer** within Dart 3.
 
 ```yaml
 dependencies:
-  waveforms_audio: ^0.2.3
+  waveforms_audio: ^0.2.4
 ```
 
 Run `flutter pub get`, then import:
@@ -289,7 +289,7 @@ lists as immutable. Equality compares all fields and color contents.
 in Chrome, Safari, or Firefox. From Android Studio, locate that file, reveal it
 in Finder/File Explorer, then open it with your browser. Keep `docs/images/`
 beside it. This works without a local server and avoids relying on the IDE's
-Markdown preview. You can also open any `.gif` in `docs/images/styles/` directly
+Markdown preview. You can also open any `.gif` in `docs/gifs/` directly
 in a browser.
 
 
@@ -300,13 +300,13 @@ settings. Each preview is a silent, four-second loop.
 
 | | |
 | --- | --- |
-| **Orb** · `.orb()`<br>![Animated orb style](docs/images/styles/orb.gif) | **Liquid orb** · `.liquidOrb()`<br>![Animated liquid orb with membranes](docs/images/styles/liquidOrb.gif) |
-| **Wave** · `.wave()`<br>![Animated smooth wave style](docs/images/styles/wave.gif) | **Ribbon** · `.ribbon()`<br>![Animated flowing ribbon style](docs/images/styles/ribbon.gif) |
-| **Spectrum** · `.bars()`<br>![Animated spectrum bars](docs/images/styles/bars.gif) | **Upward bars** · `.upwardBars()`<br>![Animated bars rising from a baseline](docs/images/styles/upwardBars.gif) |
-| **Voice bars** · `.voiceBars()`<br>![Animated voice-focused pills](docs/images/styles/voiceBars.gif) | **Mirror spectrum** · `.mirrorSpectrum()`<br>![Animated spectrum with a fading reflection](docs/images/styles/mirrorSpectrum.gif) |
-| **Halo** · `.halo()`<br>![Animated rounded halo rays](docs/images/styles/halo.gif) | **Voice bloom** · `.voiceBloom()`<br>![Animated soft bloom petals](docs/images/styles/voiceBloom.gif) |
-| **Pulse rings** · `.pulseRings()`<br>![Animated pulse rings](docs/images/styles/pulseRings.gif) | **Dot spectrum** · `.dotSpectrum()`<br>![Animated frequency dots and trails](docs/images/styles/dotSpectrum.gif) |
-| **Capsule bars** · `.capsuleBars()`<br>![Animated energy-filled capsule tracks](docs/images/styles/capsuleBars.gif) | **Minimal line** · `.minimalLine()`<br>![Animated compact waveform line](docs/images/styles/minimalLine.gif) |
+| **Orb** · `.orb()`<br>![Animated orb style](docs/gifs/orb.gif) | **Liquid orb** · `.liquidOrb()`<br>![Animated liquid orb with membranes](docs/gifs/liquidOrb.gif) |
+| **Wave** · `.wave()`<br>![Animated smooth wave style](docs/gifs/wave.gif) | **Ribbon** · `.ribbon()`<br>![Animated flowing ribbon style](docs/gifs/ribbon.gif) |
+| **Spectrum** · `.bars()`<br>![Animated spectrum bars](docs/gifs/bars.gif) | **Upward bars** · `.upwardBars()`<br>![Animated bars rising from a baseline](docs/gifs/upwardBars.gif) |
+| **Voice bars** · `.voiceBars()`<br>![Animated voice-focused pills](docs/gifs/voiceBars.gif) | **Mirror spectrum** · `.mirrorSpectrum()`<br>![Animated spectrum with a fading reflection](docs/gifs/mirrorSpectrum.gif) |
+| **Halo** · `.halo()`<br>![Animated rounded halo rays](docs/gifs/halo.gif) | **Voice bloom** · `.voiceBloom()`<br>![Animated soft bloom petals](docs/gifs/voiceBloom.gif) |
+| **Pulse rings** · `.pulseRings()`<br>![Animated pulse rings](docs/gifs/pulseRings.gif) | **Dot spectrum** · `.dotSpectrum()`<br>![Animated frequency dots and trails](docs/gifs/dotSpectrum.gif) |
+| **Capsule bars** · `.capsuleBars()`<br>![Animated energy-filled capsule tracks](docs/gifs/capsuleBars.gif) | **Minimal line** · `.minimalLine()`<br>![Animated compact waveform line](docs/gifs/minimalLine.gif) |
 
 ### All style fields
 

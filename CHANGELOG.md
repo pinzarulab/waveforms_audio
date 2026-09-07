@@ -1,3 +1,7 @@
+## 0.2.4
+
+- Update GIFs.
+
 ## 0.2.3
 
 * Add `VoiceVisualizerStyle.scale` to resize every Canvas and GPU style around
